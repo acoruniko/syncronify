@@ -37,6 +37,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'usuarios',
+    'lista_playlist',
 ]
 
 MIDDLEWARE = [
@@ -84,6 +86,8 @@ DATABASES = {
     }
 }
 
+# settings.py
+AUTH_USER_MODEL = "usuarios.Usuario"
 
 
 # Password validation
@@ -120,4 +124,4 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'

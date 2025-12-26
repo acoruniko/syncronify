@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mis Playlists</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'lista_playlist/css/style.css' %}">
+</head>
+<body>
+    <h1>Bienvenido, {{ request.user.username }}</h1>
+    <p>Aquí verás tus playlists.</p>
+</body>
+</html>
