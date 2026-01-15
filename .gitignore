@@ -1,0 +1,30 @@
+# Entorno virtual
+venv/
+
+# Configuración sensible
+.env
+
+# Certificados y llaves
+*.crt
+*.key
+*.pem
+
+# Archivos compilados de Python
+*.pyc
+__pycache__/
+
+# Base de datos local
+db.sqlite3
+
+# Archivos de VS Code
+.vscode/
+
+# Archivos de PyCharm/JetBrains
+.idea/
+
+# Archivos de logs
+*.log
+
+# Archivos de migraciones (opcional si no quieres versionarlas)
+*/migrations/__pycache__/
+*/migrations/*.pyc

@@ -1,0 +1,99 @@
+* { box-sizing: border-box; }
+body {
+    background-color: #191414; /* negro Spotify */
+    color: #fff;
+    font-family: Arial, sans-serif;
+}
+
+.messages p {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.messages p.error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.messages p.success {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.login-container {
+    width: 300px;
+    margin: 100px auto;
+}
+
+.logo-container * {
+    box-sizing: content-box;
+}
+
+
+.logo {
+    width: 120%;
+    display: block;
+    margin: 0 auto 10px;
+    position: relative;
+    left: 50%;
+    transform: translateX(-52%);
+}
+
+
+label {
+    display: block;
+    text-align: left;
+    margin: 5px 0;
+    font-size: 12px;
+    color: #aaa; /* gris claro para no competir con el logo */
+}
+
+input {
+    display: block;
+    width: 100%;
+    margin: 10px 0;
+    padding: 12px; /* igualamos padding con el botón */
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+button {
+    display: block;
+    width: 100%; /* mismo ancho que los inputs */
+    padding: 12px; /* igual padding */
+    margin-top: 30px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #333; /* tono oscuro base */
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+/* Hover: tono más claro */
+button:hover {
+    background-color: #555;
+}
+
+/* Active (click): efecto verde Spotify */
+button:active {
+    background-color: #1DB954;
+    color: #000; /* texto negro para contraste */
+}
+
+.logout-btn {
+  background-color: #d9534f;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.logout-btn:hover {
+  background-color: #c9302c;
+}

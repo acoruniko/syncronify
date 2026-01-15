@@ -1,0 +1,86 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Syncronify{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+      /* Popup flotante */
+      .rate-limit-popup {
+        position: absolute;
+        top: 60px; /* justo debajo del header */
+        right: 20px; /* alineado con el botón cerrar sesión */
+        background: #ffefef;
+        border: 1px solid #cc0000;
+        padding: 10px 15px;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        font-size: 14px;
+        color: #cc0000;
+        z-index: 1000;
+      }
+    </style>
+</head>
+<body>
+    <!-- Menú superior -->
+    <header class="topbar">
+        <div class="topbar-left">
+            <img src="{% static 'img/logo.png' %}" alt="Logo Syncronify" class="logo">
+            <span class="app-name">Syncronify</span>
+        </div>
+
+        <div class="topbar-center">
+            {% if messages %}
+            <div class="messages-bar">
+                {% for message in messages %}
+                    <div class="message {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="topbar-right">
+            {% if request.user.is_authenticated %}
+                <span class="user">{{ request.user.username }}</span>
+                <a href="{% url 'logout' %}" class="logout-btn">Cerrar sesión</a>
+            {% else %}
+                <a href="{% url 'login' %}" class="logout-btn">Iniciar sesión</a>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- Popup de rate limit -->
+    {% if rate_limited %}
+    <div id="rate-limit-popup" class="rate-limit-popup">
+        ⏳ Penalización activa: espera <span id="countdown-top">{{ seconds_remaining }}</span>s
+    </div>
+    {% endif %}
+
+    <!-- Contenido dinámico -->
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Banner inferior -->
+    <footer class="banner">
+        <img src="{% static 'img/banner.png' %}" alt="Banner Syncronify" class="banner-img">
+    </footer>
+
+    <!-- JS para countdown -->
+    <script>
+      let countdownTop = document.getElementById("countdown-top");
+      if (countdownTop) {
+        let remaining = parseInt(countdownTop.textContent);
+        let interval = setInterval(() => {
+          remaining--;
+          countdownTop.textContent = remaining;
+          if (remaining <= 0) {
+            clearInterval(interval);
+            location.reload(); // refresca cuando termina
+          }
+        }, 1000);
+      }
+    </script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Importar Playlist{% endblock %}
+
+{% block content %}
+
+<div class="importar-container">
+  <!-- Título principal centrado -->
+  <h1>Importar Playlist</h1>
+  <div class="importar-content">
+    <!-- Columna izquierda: lista + paginación -->
+    <div class="playlist-column">
+      <div class="playlist-list-vertical {% if rate_limited %}disabled-list{% endif %}">
+        {% for playlist in playlists %}
+          <div class="playlist-row" onclick="selectPlaylist(this)" 
+               data-id="{{ playlist.id }}" data-name="{{ playlist.name }}">
+            {% if playlist.images and playlist.images.0.url %}
+              <img src="{{ playlist.images.0.url }}" alt="Cover {{ playlist.name }}" class="playlist-cover">
+            {% else %}
+              <img src="{% static 'img/placeholder.png' %}" alt="Sin imagen" class="playlist-cover">
+            {% endif %}
+            <div class="playlist-info">
+              <h3 class="playlist-name">{{ playlist.name }}</h3>
+              <p>{{ playlist.tracks.total }} canciones · {{ playlist.owner.display_name }}</p>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Paginación debajo de la lista -->
+      <div class="nav-buttons">
+        {% if page_number > 1 %}
+          <a href="?page={{ page_number|add:-1 }}" class="nav-btn">Anterior</a>
+        {% endif %}
+        {% if has_next %}
+          <a href="?page={{ page_number|add:1 }}" class="nav-btn">Siguiente</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Columna derecha: botones -->
+    <div class="action-panel">
+      <div class="action-buttons-vertical">
+        <!-- Importar arriba -->
+        {% if rate_limited %}
+          <button id="importar-btn" class="action-btn primary" disabled>
+            Importar (bloqueado)
+          </button>
+        {% else %}
+          <button id="importar-btn" class="action-btn primary" disabled>Importar</button>
+        {% endif %}
+        <!-- Atrás abajo -->
+        <a href="{% url 'lista_playlist_home' %}" class="action-btn">Atrás</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let selectedPlaylistId = null;
+  let selectedPlaylistName = null;
+
+  // Detectar página actual desde la URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const currentPage = urlParams.get('page') || 1;
+
+  function selectPlaylist(el) {
+    {% if not rate_limited %}
+      document.querySelectorAll('.playlist-row').forEach(p => p.classList.remove('selected'));
+      el.classList.add('selected');
+      const btn = document.getElementById('importar-btn');
+      btn.disabled = false;
+      btn.textContent = "Importar"; // reset caption
+      selectedPlaylistId = el.dataset.id;
+      selectedPlaylistName = el.dataset.name;
+    {% endif %}
+  }
+
+  document.getElementById('importar-btn').addEventListener('click', function() {
+    {% if rate_limited %}
+      return; // bloqueado por penalización
+    {% endif %}
+
+    if (!selectedPlaylistId) return;
+
+    const confirmar = confirm(`¿Está seguro que desea importar la playlist "${selectedPlaylistName}"?`);
+    if (confirmar) {
+      const btn = document.getElementById('importar-btn');
+      btn.disabled = true;
+      btn.textContent = "Importando…";
+
+      // Bloquear la lista
+      document.querySelector('.playlist-list-vertical').classList.add('disabled-list');
+
+      // Redirigir manteniendo la página actual
+      window.location.href = `/importar/${selectedPlaylistId}/confirmar/?page=${currentPage}`;
+    }
+  });
+</script>
+{% endblock %}
