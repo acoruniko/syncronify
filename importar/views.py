@@ -18,7 +18,6 @@ def importar_playlist_confirmar(request, playlist_id):
 
         # ⚠️ Verificar rate limit antes de importar
         if cred.rate_limit_until and cred.rate_limit_until > timezone.now():
-            rate_limited = True
             seconds_remaining = int((cred.rate_limit_until - timezone.now()).total_seconds())
             messages.error(
                 request,
@@ -46,7 +45,6 @@ def importar_playlist_confirmar(request, playlist_id):
                 retry_after = int(resp.headers.get("Retry-After", 30))
                 cred.rate_limit_until = timezone.now() + timedelta(seconds=retry_after)
                 cred.save()
-                rate_limited = True
                 messages.error(
                     request,
                     f"Muchas peticiones a la API de Spotify. Espera {retry_after} segundos antes de volver a intentar."
@@ -61,6 +59,11 @@ def importar_playlist_confirmar(request, playlist_id):
                 if not track:
                     continue
 
+                # ✅ Obtener cover de la canción (del álbum)
+                cover_url = None
+                if track["album"].get("images"):
+                    cover_url = track["album"]["images"][0]["url"]
+
                 cancion_obj, _ = Cancion.objects.get_or_create(
                     id_spotify=track["id"],
                     defaults={
@@ -69,6 +72,7 @@ def importar_playlist_confirmar(request, playlist_id):
                         "album": track["album"]["name"],
                         "duracion_ms": track["duration_ms"],
                         "popularidad": track.get("popularity"),
+                        "cover_url": cover_url,
                     }
                 )
                 canciones_guardadas.append((cancion_obj, item))
@@ -86,7 +90,6 @@ def importar_playlist_confirmar(request, playlist_id):
             retry_after = int(playlist_resp.headers.get("Retry-After", 30))
             cred.rate_limit_until = timezone.now() + timedelta(seconds=retry_after)
             cred.save()
-            rate_limited = True
             messages.error(
                 request,
                 f"Muchas peticiones a la API de Spotify. Espera {retry_after} segundos antes de volver a intentar."
@@ -111,12 +114,12 @@ def importar_playlist_confirmar(request, playlist_id):
         )
 
         # 4. Guardar relaciones playlist ↔ canciones
-        for cancion_obj, item in canciones_guardadas:
+        for idx, (cancion_obj, item) in enumerate(canciones_guardadas, start=1):
             PlaylistCancion.objects.get_or_create(
                 playlist=playlist_obj,
                 cancion=cancion_obj,
                 defaults={
-                    "posicion": item["track"]["track_number"],
+                    "posicion": idx,  # ✅ posición real según el orden del arreglo
                     "fecha_agregado": item.get("added_at"),
                     "agregado_por": item["added_by"]["id"] if item.get("added_by") else None,
                 }
@@ -130,8 +133,8 @@ def importar_playlist_confirmar(request, playlist_id):
         messages.error(request, f"Error al importar la playlist: {str(e)}")
         current_page = request.GET.get("page", 1)
         return redirect(f"/importar/playlists/?page={current_page}")
-
-
+    
+    
 @login_required
 def importar_playlists(request):
     cred = CredencialesSpotify.objects.first()
@@ -141,19 +144,6 @@ def importar_playlists(request):
     # Inicializar variables
     rate_limited = False
     seconds_remaining = 0
-
-    # ⚠️ Simulación manual de 429 si pasas ?force429=1 en la URL
-    #if request.GET.get("force429") == "1":
-    #    retry_after = 30
-    #    cred.rate_limit_until = timezone.now() + timedelta(seconds=retry_after)
-    #    cred.save()
-    #    rate_limited = True
-    #    seconds_remaining = retry_after
-    #    messages.error(
-    #        request,
-    #        f"[SIMULACIÓN] Muchas peticiones a la API de Spotify. Espera {retry_after} segundos antes de volver a intentar."
-    #    )
-    #    return redirect("lista_playlist_home")
 
     # ⚠️ Revisar rate limit real antes de listar
     if cred.rate_limit_until and cred.rate_limit_until > timezone.now():

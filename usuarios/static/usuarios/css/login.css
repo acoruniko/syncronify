@@ -1,0 +1,90 @@
+/* Reset básico */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #191414; /* negro Spotify */
+  color: #fff;
+  font-family: Arial, sans-serif;
+}
+
+/* Contenedor principal del login */
+.login-container {
+  width: 300px;
+  margin: 100px auto;
+}
+
+/* Logo centrado */
+.logo-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.logo {
+  width: 300px;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Mensajes */
+.messages p {
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.messages p.error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.messages p.success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+/* Labels */
+label {
+  display: block;
+  text-align: left;
+  margin: 5px 0;
+  font-size: 12px;
+  color: #aaa; /* gris claro para no competir con el logo */
+}
+
+/* Inputs */
+input {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  padding: 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+/* Botón de login */
+button {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin-top: 30px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: #333; /* tono oscuro base */
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+button:hover {
+  background-color: #555;
+}
+
+button:active {
+  background-color: #1DB954; /* verde Spotify */
+  color: #000; /* texto negro para contraste */
+}

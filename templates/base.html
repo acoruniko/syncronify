@@ -4,7 +4,16 @@
 <head>
     <meta charset="UTF-8">
     <title>{% block title %}Syncronify{% endblock %}</title>
+
+    <!-- Favicon con el logo de Syncronify -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/logo-icon.png' %}">
+
+    <!-- CSS global -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+    <!-- CSS específico por vista -->
+    {% block extra_css %}{% endblock %}
+
     <style>
       /* Popup flotante */
       .rate-limit-popup {
@@ -26,9 +35,13 @@
     <!-- Menú superior -->
     <header class="topbar">
         <div class="topbar-left">
-            <img src="{% static 'img/logo.png' %}" alt="Logo Syncronify" class="logo">
+            <!-- Logo clickeable que lleva al home -->
+            <a href="{% url 'lista_playlist_home' %}">
+                <img src="{% static 'img/logo.png' %}" alt="Logo Syncronify" class="logo">
+            </a>
             <span class="app-name">Syncronify</span>
         </div>
+
 
         <div class="topbar-center">
             {% if messages %}
@@ -53,7 +66,7 @@
     <!-- Popup de rate limit -->
     {% if rate_limited %}
     <div id="rate-limit-popup" class="rate-limit-popup">
-        ⏳ Penalización activa: espera <span id="countdown-top">{{ seconds_remaining }}</span>s
+        ⏳ Penalización de la API activa: espera <span id="countdown-top">{{ seconds_remaining }}</span>s
     </div>
     {% endif %}
 
@@ -69,6 +82,22 @@
 
     <!-- JS para countdown -->
     <script>
+      // Snippet oficial de Django para obtener el CSRF token desde las cookies
+      function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+              const cookies = document.cookie.split(';');
+              for (let i = 0; i < cookies.length; i++) {
+                  const cookie = cookies[i].trim();
+                  if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                      cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                      break;
+                  }
+              }
+          }
+          return cookieValue;
+      }
+
       let countdownTop = document.getElementById("countdown-top");
       if (countdownTop) {
         let remaining = parseInt(countdownTop.textContent);

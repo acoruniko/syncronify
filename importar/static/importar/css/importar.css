@@ -1,0 +1,170 @@
+/* Contenedor principal */
+.importar-container {
+  padding: 2rem;
+  display: flex;
+  justify-content: center;
+}
+
+/* Layout en 3 columnas */
+.importar-content {
+  display: grid;
+  grid-template-columns: 250px 800px 250px; /* título | lista | botones */
+  gap: 2rem;
+  align-items: start;
+}
+
+/* Columna izquierda: título estilo Spotify */
+.playlist-header {
+  padding: 1.5rem;
+  border-radius: 8px;
+  display: flex;
+  justify-content: right; /* centra horizontalmente */
+  align-items: center;     /* centra verticalmente */
+}
+
+.playlist-header h1 {
+  background: linear-gradient(180deg, #4a4a4a, #121212); /* degradado gris más marcado */
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin: 0;
+  font-size: 40px; /* más grande */
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+  white-space: nowrap; /* evita que se parta en dos líneas */
+  letter-spacing: 1px; /* un poco más de aire */
+}
+
+/* Columna central: lista */
+.playlist-column {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Lista vertical */
+.playlist-list-vertical {
+  max-height: 600px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 800px;
+}
+
+/* Scroll estilo Spotify */
+.playlist-list-vertical::-webkit-scrollbar {
+  width: 8px;
+}
+.playlist-list-vertical::-webkit-scrollbar-track {
+  background: transparent;
+}
+.playlist-list-vertical::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+.playlist-list-vertical:hover::-webkit-scrollbar-thumb {
+  background: #555;
+}
+.playlist-list-vertical::-webkit-scrollbar-thumb:hover {
+  background: #888;
+}
+.playlist-list-vertical {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.playlist-list-vertical:hover {
+  scrollbar-color: #555 transparent;
+}
+
+.playlist-list-vertical.disabled {
+  pointer-events: none;   /* bloquea clicks */
+  opacity: 0.5;           /* se ve deshabilitado */
+}
+
+/* Fila de playlist */
+.playlist-row {
+  display: flex;
+  align-items: center;
+  background: #181818;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.playlist-row:hover {
+  background: #282828;
+}
+.playlist-row.selected {
+  background: #333333;
+  border: 2px solid #1db954;
+}
+
+/* Cover */
+.playlist-cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  object-fit: cover;
+  margin-right: 12px;
+}
+
+/* Info */
+.playlist-info h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 650px;
+}
+.playlist-info p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #b3b3b3;
+}
+
+/* Paginación debajo de la lista */
+.nav-buttons {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.nav-buttons.disabled {
+  pointer-events: none;   /* bloquea clicks */
+  opacity: 0.5;           /* se ven deshabilitados */
+}
+
+.nav-btn {
+  background: #1db954;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 14px;
+}
+.nav-btn:hover {
+  background: #1ed760;
+}
+
+/* Columna derecha: acciones */
+.action-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;   /* centra horizontalmente */
+  justify-content: center; /* centra verticalmente */
+  gap: 1rem;
+  height: 100%; /* ocupa toda la altura de la columna */
+}
+
+/* Botones en columna */
+.action-buttons-vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}

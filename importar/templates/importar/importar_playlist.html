@@ -1,17 +1,23 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Importar Playlist{% endblock %}
+{% block title %}Importar Playlists | Syncronify{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'importar/css/importar.css' %}">
+{% endblock %}
 
 {% block content %}
-
 <div class="importar-container">
-  <!-- Título principal centrado -->
-  <h1>Importar Playlist</h1>
   <div class="importar-content">
-    <!-- Columna izquierda: lista + paginación -->
+    <!-- Columna izquierda: título -->
+    <div class="playlist-header">
+      <h1>Importar Playlists</h1>
+    </div>
+
+    <!-- Columna central: lista + paginación -->
     <div class="playlist-column">
-      <div class="playlist-list-vertical {% if rate_limited %}disabled-list{% endif %}">
+      <div class="playlist-list-vertical {% if rate_limited %}disabled{% endif %}">
         {% for playlist in playlists %}
           <div class="playlist-row" onclick="selectPlaylist(this)" 
                data-id="{{ playlist.id }}" data-name="{{ playlist.name }}">
@@ -42,7 +48,6 @@
     <!-- Columna derecha: botones -->
     <div class="action-panel">
       <div class="action-buttons-vertical">
-        <!-- Importar arriba -->
         {% if rate_limited %}
           <button id="importar-btn" class="action-btn primary" disabled>
             Importar (bloqueado)
@@ -50,7 +55,6 @@
         {% else %}
           <button id="importar-btn" class="action-btn primary" disabled>Importar</button>
         {% endif %}
-        <!-- Atrás abajo -->
         <a href="{% url 'lista_playlist_home' %}" class="action-btn">Atrás</a>
       </div>
     </div>
@@ -61,17 +65,21 @@
   let selectedPlaylistId = null;
   let selectedPlaylistName = null;
 
-  // Detectar página actual desde la URL
   const urlParams = new URLSearchParams(window.location.search);
   const currentPage = urlParams.get('page') || 1;
 
   function selectPlaylist(el) {
+    // Si la lista está bloqueada, no permitir selección
+    if (document.querySelector('.playlist-list-vertical').classList.contains('disabled')) {
+      return;
+    }
+
     {% if not rate_limited %}
       document.querySelectorAll('.playlist-row').forEach(p => p.classList.remove('selected'));
       el.classList.add('selected');
       const btn = document.getElementById('importar-btn');
       btn.disabled = false;
-      btn.textContent = "Importar"; // reset caption
+      btn.textContent = "Importar";
       selectedPlaylistId = el.dataset.id;
       selectedPlaylistName = el.dataset.name;
     {% endif %}
@@ -79,7 +87,7 @@
 
   document.getElementById('importar-btn').addEventListener('click', function() {
     {% if rate_limited %}
-      return; // bloqueado por penalización
+      return;
     {% endif %}
 
     if (!selectedPlaylistId) return;
@@ -91,10 +99,34 @@
       btn.textContent = "Importando…";
 
       // Bloquear la lista
-      document.querySelector('.playlist-list-vertical').classList.add('disabled-list');
+      document.querySelector('.playlist-list-vertical').classList.add('disabled');
 
-      // Redirigir manteniendo la página actual
+      // Bloquear los botones de navegación
+      document.querySelector('.nav-buttons').classList.add('disabled');
+
       window.location.href = `/importar/${selectedPlaylistId}/confirmar/?page=${currentPage}`;
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    const clickedInsidePlaylist = e.target.closest('.playlist-row');
+    const clickedButtonOrLink = e.target.closest('button, a');
+
+    if (!clickedInsidePlaylist && !clickedButtonOrLink) {
+      // Si la lista está bloqueada, no permitir deselección
+      if (document.querySelector('.playlist-list-vertical').classList.contains('disabled')) {
+        return;
+      }
+
+      document.querySelectorAll('.playlist-row').forEach(p => p.classList.remove('selected'));
+      selectedPlaylistId = null;
+      selectedPlaylistName = null;
+
+      const btn = document.getElementById('importar-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Importar";
+      }
     }
   });
 </script>

@@ -1,65 +1,158 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Lista de Playlist | Syncronify{% endblock %}
+{% block title %}Lista de Playlists | Syncronify{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'lista_playlist/css/lista_playlist.css' %}">
+{% endblock %}
 
 {% block content %}
 <div class="importar-container">
-  <h1>Lista de Playlist</h1>
-
-  <div class="importar-content">
-    <!-- Columna izquierda: lista -->
-    <div class="playlist-list-vertical">
-      {% for playlist in playlists %}
-        <div class="playlist-row" onclick="selectPlaylist(this)" data-id="{{ playlist.id_playlist }}">
-          {% if playlist.cover_url %}
-            <img src="{{ playlist.cover_url }}" alt="Cover {{ playlist.nombre }}" class="playlist-cover">
-          {% else %}
-            <img src="{% static 'img/placeholder.png' %}" alt="Sin imagen" class="playlist-cover">
-          {% endif %}
-          <div class="playlist-info">
-            <h3>{{ playlist.nombre }}</h3>
-            <p>{{ playlist.total_canciones }} canciones · {{ playlist.propietario }}</p>
-          </div>
-        </div>
-      {% empty %}
-        <p>No hay playlists almacenadas.</p>
-      {% endfor %}
+  <div class="importar-content-3col">
+    <!-- Columna izquierda: título -->
+    <div class="playlist-header">
+      <h1>Lista de Playlists</h1>
     </div>
-    
-    <div class="action-panel">
-  <!-- Bloque superior: acciones sobre playlist seleccionada -->
-  <div class="action-buttons-vertical">
-    <button id="btn-editar" class="action-btn" disabled>Editar</button>
-    <button id="btn-eliminar" class="action-btn" disabled>Eliminar</button>
-  </div>
 
-  <!-- Bloque inferior: acciones generales -->
-  <div class="action-buttons-vertical general-actions">
-    <button id="btn-sincronizar" class="action-btn">Sincronizar con Spotify</button>
-    <form action="{% url 'importar_playlists' %}" method="get">
-      {% if rate_limited %}
-        <button type="submit" class="action-btn primary" disabled>
-          Importar playlists desde Spotify (bloqueado)
-        </button>
-      {% else %}
-        <button type="submit" class="action-btn primary">
-          Importar playlists desde Spotify
-        </button>
-      {% endif %}
-    </form>
-    <button id="btn-logs" class="action-btn">Logs de la aplicación</button>
+    <!-- Columna central: lista -->
+    <div class="playlist-column">
+      <div class="playlist-list-vertical">
+        {% for playlist in playlists %}
+          <div class="playlist-row" 
+               onclick="selectPlaylist(this)" 
+               data-id="{{ playlist.id_playlist }}" 
+               data-name="{{ playlist.nombre }}">
+            {% if playlist.cover_url %}
+              <img src="{{ playlist.cover_url }}" alt="Cover {{ playlist.nombre }}" class="playlist-cover">
+            {% else %}
+              <img src="{% static 'img/placeholder.png' %}" alt="Sin imagen" class="playlist-cover">
+            {% endif %}
+            <div class="playlist-info">
+              <h3>{{ playlist.nombre }}</h3>
+              <p>{{ playlist.total_canciones }} canciones · {{ playlist.propietario }}</p>
+            </div>
+          </div>
+        {% empty %}
+          <p>No hay playlists almacenadas.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Columna derecha: acciones -->
+    <div class="action-panel">
+      <div class="action-buttons-vertical">
+        <button id="btn-editar" class="action-btn" disabled>Editar</button>
+        <button id="btn-eliminar" class="action-btn" disabled>Eliminar</button>
+      </div>
+      <div class="action-buttons-vertical general-actions">
+        <button id="btn-sincronizar" class="action-btn">Sincronizar con Spotify</button>
+        <form action="{% url 'importar_playlists' %}" method="get">
+          {% if rate_limited %}
+            <button type="submit" class="action-btn primary" disabled>
+              Importar playlists desde Spotify (bloqueado)
+            </button>
+          {% else %}
+            <button type="submit" class="action-btn primary">
+              Importar playlists desde Spotify
+            </button>
+          {% endif %}
+        </form>
+        <button id="btn-logs" class="action-btn">Logs de la aplicación</button>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
   let selectedPlaylistId = null;
+  let selectedPlaylistName = null;
+
   function selectPlaylist(el) {
+    // Quitar selección previa
     document.querySelectorAll('.playlist-row').forEach(p => p.classList.remove('selected'));
+
+    // Marcar la nueva
     el.classList.add('selected');
     selectedPlaylistId = el.dataset.id;
+    selectedPlaylistName = el.dataset.name;
+
+    // Habilitar botones
     document.getElementById('btn-editar').disabled = false;
     document.getElementById('btn-eliminar').disabled = false;
   }
+
+  // Inicializar estado al cargar
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('btn-editar').disabled = true;
+    document.getElementById('btn-eliminar').disabled = true;
+  });
+
+  // Detectar clicks fuera de las playlists
+  document.addEventListener('click', function(e) {
+    const clickedInsidePlaylist = e.target.closest('.playlist-row');
+    const clickedButtonOrLink = e.target.closest('button, a');
+
+    if (!clickedInsidePlaylist && !clickedButtonOrLink) {
+      // Deseleccionar playlists
+      document.querySelectorAll('.playlist-row').forEach(p => p.classList.remove('selected'));
+      selectedPlaylistId = null;
+      selectedPlaylistName = null;
+
+      // Deshabilitar botones
+      document.getElementById('btn-editar').disabled = true;
+      document.getElementById('btn-eliminar').disabled = true;
+    }
+  });
+
+  // Editar playlist
+    document.getElementById('btn-editar').addEventListener('click', function() {
+    if (!selectedPlaylistId) return;
+
+    // Construir la URL usando marcador ficticio
+    const editarUrlTemplate = "{% url 'editar_playlist_home' 999999 %}";
+    const editarUrl = editarUrlTemplate.replace("999999", selectedPlaylistId);
+
+    // Redirigir
+    window.location.href = editarUrl;
+  });
+
+
+  // Eliminar playlist con doble confirmación y manejo de JSON
+  document.getElementById('btn-eliminar').addEventListener('click', function() {
+    if (!selectedPlaylistId) return;
+
+    const confirmar1 = confirm(`¿Está seguro que desea eliminar la playlist "${selectedPlaylistName}" de la base de datos?`);
+    if (!confirmar1) return;
+
+    const confirmar2 = confirm(`Se borrará la playlist "${selectedPlaylistName}" de la BASE DE DATOS, no hay vuelta atrás, sin lloradera`);
+    if (!confirmar2) return;
+
+    // Construir la URL usando el marcador ficticio 999999
+    const eliminarUrlTemplate = "{% url 'eliminar_playlist' 999999 %}";
+    const eliminarUrl = eliminarUrlTemplate.replace("999999", selectedPlaylistId);
+
+    // Petición al backend
+    fetch(eliminarUrl, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        // ✅ Ya no usamos alert, solo recargamos para que aparezca el mensaje en la barra superior
+        window.location.reload();
+      } else {
+        // En caso de error, también recargamos para que aparezca el mensaje de error en la barra superior
+        window.location.reload();
+      }
+    })
+    .catch(error => {
+      console.error("Error en la petición:", error);
+      window.location.reload(); // recarga para mostrar mensaje de error
+    });
+  });
 </script>
 {% endblock %}

@@ -1,9 +1,14 @@
 # lista_playlist/views.py
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 from django.utils import timezone
 from playlists.models import Playlist
 from conexion.models import CredencialesSpotify
+from django.contrib import messages
+from django.http import JsonResponse
+
+
 
 @login_required
 def lista_playlist_home(request):
@@ -25,3 +30,12 @@ def lista_playlist_home(request):
         "rate_limited": rate_limited,
         "seconds_remaining": seconds_remaining,
     })
+
+
+@require_POST
+def eliminar_playlist(request, playlist_id):
+    playlist = get_object_or_404(Playlist, id_playlist=playlist_id)
+    nombre = playlist.nombre
+    playlist.delete()
+    messages.success(request, f'Playlist "{nombre}" eliminada correctamente.')
+    return JsonResponse({'status': 'ok'})

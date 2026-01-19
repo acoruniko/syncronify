@@ -4,16 +4,19 @@
     <meta charset="UTF-8">
     <title>Login - Syncronify</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'usuarios/css/style.css' %}">
+    <!-- CSS global -->
+    <link rel="stylesheet" href="{% static 'css/global.css' %}">
+    <!-- CSS específico de login -->
+    <link rel="stylesheet" href="{% static 'usuarios/css/login.css' %}">
 </head>
 <body>
     <div class="login-container">
-        <!-- Logo en lugar del título -->
+        <!-- Logo -->
         <div class="logo-container">
             <img src="{% static 'usuarios/img/logo_banner.png' %}" alt="Logo Syncronify" class="logo">
         </div>
 
-        <!-- Bloque de mensajes -->
+        <!-- Mensajes -->
         {% if messages %}
         <div class="messages">
             {% for message in messages %}

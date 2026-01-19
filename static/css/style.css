@@ -1,8 +1,13 @@
+/* Reset básico */
+* {
+  box-sizing: border-box;
+}
+
 body {
   font-family: Arial, sans-serif;
   margin: 0;
-  background-color: #000; /* negro Spotify */
-  color: #fff;            /* texto claro */
+  background-color: #000;   /* negro Spotify */
+  color: #fff;              /* texto claro */
 }
 
 /* Menú superior */
@@ -41,6 +46,7 @@ body {
   gap: 1rem;
 }
 
+/* Botón de logout (general) */
 .logout-btn {
   background: #1db954;
   color: #000;
@@ -48,12 +54,14 @@ body {
   border-radius: 999px;
   text-decoration: none;
   font-weight: bold;
+  border: none;
+  cursor: pointer;
 }
 .logout-btn:hover {
   filter: brightness(1.1);
 }
 
-/* Contenido */
+/* Contenido genérico */
 .content {
   padding: 2rem;
 }
@@ -73,215 +81,17 @@ body {
   border-radius: 8px 0 0 0;
 }
 
+/* Títulos de página */
 .page-title {
-  text-align: center;   /* centrado horizontal */
+  text-align: center;
   font-size: 28px;
   margin-bottom: 2rem;
   font-weight: bold;
 }
 
-
-/* Playlist en grid */
-.playlist-list {
-  list-style: none;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-}
-
-/* Nombres truncados */
-.playlist-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 800px;          /* 👈 ancho estable dentro de la columna */
-  display: block;
-}
-
-
-/* Columna izquierda: lista */
-.playlist-column {
-  width: 900px;              /* 👈 ancho fijo */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-
-.playlist-item {
-  background: #181818;
-  color: #fff;
-  border-radius: 8px;
-  padding: 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  transition: background .15s ease, transform .02s ease;
-}
-.playlist-item:hover {
-  background: #282828;
-  transform: translateY(-2px);
-}
-
-.playlist-cover {
-  width: 64px;
-  height: 64px;
-  border-radius: 4px;
-  object-fit: cover;
-  background: #0f0f0f;
-}
-
-.playlist-info {
-  flex: 1;
-}
-.playlist-meta {
-  color: #b3b3b3;
-  font-size: 13px;
-}
-
-/* Contenedor principal de importar */
-.importar-container {
-  padding: 2rem;
-  display: flex;
-  justify-content: center; /* centra todo el contenido en la pantalla */
-}
-
-
-.playlist-row {
-  display: flex;
-  align-items: center;
-  background: #121212;
-  color: #fff;
-  padding: 8px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-.playlist-row:hover {
-  background: #1e1e1e;
-}
-.playlist-row:active {
-  background: #2a2a2a;
-}
-.playlist-row.selected {
-  background: #333333;
-  border: 2px solid #1db954;
-}
-
-.playlist-cover {
-  width: 48px;
-  height: 48px;
-  border-radius: 4px;
-  object-fit: cover;
-  margin-right: 12px;
-}
-
-.playlist-info h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: bold;
-  white-space: nowrap;       /* no saltar de línea */
-  overflow: hidden;          /* oculta exceso */
-  text-overflow: ellipsis;   /* muestra “...” */
-  max-width: 800px
-}
-
-
-.playlist-info p {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #b3b3b3;
-}
-
-.importar-content {
-  display: flex;
-  justify-content: center;   /* centra horizontalmente */
-  align-items: center;       /* 👈 centra verticalmente la fila completa */
-  gap: 3rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-/* Lista vertical con scroll */
-.playlist-list-vertical {
-  width: 100%;
-  max-height: 600px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-
-/* Scroll estilo Spotify */
-.playlist-list-vertical::-webkit-scrollbar {
-  width: 8px;
-}
-.playlist-list-vertical::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.playlist-list-vertical::-webkit-scrollbar-thumb {
-  background: transparent; /* invisible por defecto */
-  border-radius: 0 !important; /* 👈 fuerza rectangular */
-}
-
-.playlist-list-vertical:hover::-webkit-scrollbar-thumb {
-  background: #555; /* aparece solo al hover */
-  border-radius: 0; /* rectangular */
-}
-.playlist-list-vertical::-webkit-scrollbar-thumb:hover {
-  background: #888;
-}
-
-/* Firefox */
-.playlist-list-vertical {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-.playlist-list-vertical:hover {
-  scrollbar-color: #555 transparent;
-}
-
-
-/* Columna derecha: panel de acciones */
-.action-panel {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;  
-  align-items: center;
-  height: 100%;
-}
-
-
-/* Botones en columna */
-.action-buttons-vertical {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;                 /* separación entre Importar y Atrás */
-}
-
-
-.action-buttons-vertical .action-btn:first-child {
-  margin-top: 0; /* Importar arriba */
-}
-
-/* Atrás más abajo */
-.action-buttons-vertical .action-btn:last-child {
-  margin-top: 80px;          /* 👈 empuja Atrás hacia abajo */
-}
-
-/* Paginación debajo de playlists */
-.nav-buttons {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 1rem;
-}
-
-.nav-btn, .action-btn {
+/* Botones genéricos */
+.nav-btn,
+.action-btn {
   background: #282828;
   color: #fff;
   padding: 8px 16px;
@@ -291,7 +101,8 @@ body {
   border: none;
   cursor: pointer;
 }
-.nav-btn:hover, .action-btn:hover {
+.nav-btn:hover,
+.action-btn:hover {
   background: #1db954;
   color: #000;
 }
@@ -305,25 +116,26 @@ body {
   color: #aaa;
   cursor: not-allowed;
 }
-
-/* Estado bloqueado de la lista */
-.disabled-list {
-  pointer-events: none;       /* 👈 bloquea clicks */
-  opacity: 0.6;               /* opcional: se ve más tenue */
-  cursor: not-allowed;        /* 👈 cursor prohibido */
+.action-btn:disabled {
+  background: #555;   /* gris oscuro */
+  color: #aaa;        /* texto apagado */
+  cursor: not-allowed;
+  opacity: 0.6;       /* más tenue */
 }
 
-.rate-limit-banner {
-  background: #ffc107;
-  color: #000;
-  padding: 0.3rem 0.6rem;
+
+/* Mensajes globales */
+.messages p {
+  padding: 10px;
+  margin-bottom: 10px;
   border-radius: 4px;
   font-weight: bold;
-  display: inline-block;
-  margin-top: 0.5rem;
 }
-
-
-.general-actions {
-  margin-top: 60px; /* ajusta este valor para controlar la distancia */
+.messages p.error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+.messages p.success {
+  background-color: #d4edda;
+  color: #155724;
 }

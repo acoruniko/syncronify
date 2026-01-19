@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Editar Playlist | {{ playlist.nombre }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'editar_playlist/css/editar_playlist.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="editar-container">
+  <!-- Grid principal con 3 columnas -->
+  <div class="editar-layout">
+    
+    <!-- Columna izquierda -->
+    <div class="playlist-section">
+      <!-- Header grande fijo -->
+      <div class="playlist-header">
+        {% if playlist.cover_url %}
+          <img src="{{ playlist.cover_url }}" alt="Cover {{ playlist.nombre }}" class="playlist-cover-big">
+        {% endif %}
+        <div class="playlist-info-block">
+          <h1 class="playlist-title {% if playlist.nombre|length > 40 %}long{% endif %}">
+            {{ playlist.nombre }}
+          </h1>
+          {% if playlist.descripcion %}
+            <p class="playlist-description">{{ playlist.descripcion }}</p>
+          {% endif %}
+          <p class="playlist-meta">
+            {{ playlist.propietario }} · {{ playlist.total_canciones }} canciones
+          </p>
+        </div>
+      </div>
+
+      <!-- Encabezado de canciones sticky -->
+      <div class="songs-header sticky">
+        <span class="col-idx">#</span>
+        <span class="col-title">Título</span>
+        <span class="col-album">Álbum</span>
+      </div>
+
+      <!-- Lista de canciones -->
+      <div class="songs-list">
+        {% for c in canciones %}
+          <div class="song-row" onclick="seleccionarCancion(this)" data-id="{{ c.id }}">
+            <span class="col-idx">{{ c.posicion|default:"—" }}</span>
+            <span class="col-title">
+              {% if c.cover_url %}
+                <img src="{{ c.cover_url }}" alt="Cover {{ c.titulo }}" class="song-cover">
+              {% endif %}
+              {{ c.titulo }}
+            </span>
+            <span class="col-album">{{ c.album }}</span>
+          </div>
+        {% empty %}
+          <p class="empty">Esta playlist no tiene canciones relacionadas.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Columna derecha: detalles y tareas -->
+    <div class="details-section">
+      <div class="detalle-box">
+        <h3>Datos de la canción</h3>
+        <p><strong>Nombre:</strong> <span id="detalle-nombre">—</span></p>
+        <p><strong>Autor:</strong> <span id="detalle-artistas">—</span></p>
+        <p><strong>Álbum:</strong> <span id="detalle-album">—</span></p>
+        <p><strong>Duración:</strong> <span id="detalle-duracion">—</span></p>
+        <p><strong>Agregada:</strong> <span id="detalle-agregado">—</span></p>
+        <p><strong>Posición:</strong> <span id="detalle-posicion">—</span></p>
+      </div>
+
+      <div class="detalle-box">
+        <h3>Tareas asignadas</h3>
+        <ul id="lista-tareas">
+          <li>No hay tareas asignadas.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Columna derecha: acciones -->
+   <div class="action-panel">
+        <div class="action-buttons-vertical">
+            <button class="action-btn" onclick="agregarCancion()">Agregar Canción</button>
+            <button class="action-btn" onclick="volverAtras()">Atrás</button>
+        </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const canciones = JSON.parse('{{ canciones_json|escapejs }}');
+
+  function seleccionarCancion(el) {
+    document.querySelectorAll('.song-row').forEach(r => r.classList.remove('selected'));
+    el.classList.add('selected');
+
+    const id = el.dataset.id;
+    const c = canciones.find(x => x.id == id);
+
+    if (c) {
+      document.getElementById("detalle-nombre").textContent = c.titulo;
+      document.getElementById("detalle-artistas").textContent = c.artistas;
+      document.getElementById("detalle-album").textContent = c.album;
+      document.getElementById("detalle-duracion").textContent = c.duracion || "—";
+      document.getElementById("detalle-agregado").textContent = c.fecha_agregado ? new Date(c.fecha_agregado).toLocaleDateString() : "—";
+      document.getElementById("detalle-posicion").textContent = c.posicion || "—";
+
+      document.getElementById("lista-tareas").innerHTML = "<li>No hay tareas asignadas.</li>";
+    }
+  }
+
+  function volverAtras() {
+    window.location.href = "{% url 'lista_playlist_home' %}";
+  }
+
+  function agregarCancion() {
+    alert("Funcionalidad de agregar canción en construcción...");
+  }
+</script>
+{% endblock %}

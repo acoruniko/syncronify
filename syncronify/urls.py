@@ -22,6 +22,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("usuarios/", include("usuarios.urls")),  # conecta las rutas de la app usuarios
     path("lista_playlist/", include("lista_playlist.urls")),
+    path('editar_playlist/', include('editar_playlist.urls')),
     path("spotify/login", login_spotify, name="spotify_login"),
     path("spotify/callback", spotify_callback, name="spotify_callback"),
     path("conexion/", include("conexion.urls")),

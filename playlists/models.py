@@ -35,6 +35,7 @@ class Cancion(models.Model):
     duracion_ms = models.IntegerField()
     popularidad = models.IntegerField(blank=True, null=True)
     fecha_importacion = models.DateTimeField(auto_now_add=True)
+    cover_url = models.TextField(blank=True, null=True) 
 
     class Meta:
         db_table = 'canciones'
