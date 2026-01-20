@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from usuarios.models import Usuario  # importa tu modelo Usuario
 
 
 class Playlist(models.Model):
@@ -67,3 +68,33 @@ class PlaylistCancion(models.Model):
         db_table = "playlist_canciones"
         unique_together = ("playlist", "cancion")
         managed = False
+
+class Tarea(models.Model):
+    id_tarea = models.AutoField(primary_key=True)
+    relacion = models.ForeignKey(
+        PlaylistCancion,
+        db_column="id_relacion",   # 👈 nombre real en la BD
+        on_delete=models.CASCADE
+    )
+
+    tipo = models.CharField(max_length=50)  # 'posicionar' | 'eliminar'
+    estado = models.CharField(max_length=20, default='pendiente')
+
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_ejecucion = models.DateTimeField()
+
+    intentos = models.IntegerField(default=0)
+    mensaje_error = models.TextField(null=True, blank=True)
+
+    usuario = models.ForeignKey(Usuario, db_column="id_usuario_creo", on_delete=models.CASCADE)  # 👈 aquí
+
+
+    # Campos opcionales según tipo
+    url_cancion = models.TextField(null=True, blank=True)  # no se usa aquí, pero lo dejamos por consistencia
+    posicion = models.IntegerField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.tipo} - rel:{self.relacion_id} - {self.estado}"
+    class Meta:
+        db_table = "tareas"  
+        managed = False   

@@ -269,3 +269,188 @@
   border-radius: 4px;
   margin-bottom: 4px;
 }
+
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 100; }
+.modal.hidden { display: none; }
+.modal-content { background: #181818; color: #fff; padding: 1.5rem; border-radius: 10px; width: 420px; }
+.campo-dinamico { margin-top: 1rem; }
+.modal-buttons { display: flex; gap: 10px; margin-top: 1rem; justify-content: flex-end; }
+
+.tareas-header, .tarea-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr 2fr;
+  padding: 6px 10px;
+  align-items: center;
+}
+
+.tareas-header {
+  font-weight: bold;
+  border-bottom: 1px solid #ccc;
+}
+
+.tarea-row {
+  cursor: pointer;
+}
+
+/* Tareas → idéntico estilo */
+.tarea-row.selected {
+  background-color: #e6fff0;   /* mismo verde claro */
+  border-left: 4px solid #28a745; /* mismo borde verde */
+}
+
+/* Lista de tareas */
+.tareas-list {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow-y: auto;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.tareas-list::-webkit-scrollbar {
+  width: 8px;
+}
+.tareas-list::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+.tareas-list::-webkit-scrollbar-thumb:hover {
+  background: #888;
+}
+
+/* Fila de tarea con estilo idéntico a canción */
+.tarea-row {
+  padding: 8px;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+  cursor: pointer;
+  color: #fff;
+}
+
+.tarea-row:hover {
+  background: #242424; /* mismo hover que canción */
+}
+
+.tarea-row.selected {
+  background: #333333; /* mismo fondo que canción seleccionada */
+  border: 2px solid #1db954; /* mismo borde verde Spotify */
+}
+
+
+/* Box de datos de la canción */
+.detalle-box.datos-cancion {
+  background: #181818;
+  color: #fff;
+  padding: 0.5rem;
+  border-radius: 8px;
+  font-size: 14px; /* más grande */
+  height: 290px;   /* tamaño fijo */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+/* Box de tareas */
+.detalle-box.tareas {
+  background: #181818;
+  color: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+  font-size: 16px;
+  height: 420px;   /* más grande */
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* Botones al final y centrados */
+.tarea-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: auto; /* empuja hacia abajo */
+}
+
+/* Campos de detalle con máximo 2 líneas y puntos suspensivos */
+.detalle-box span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;       /* máximo 2 líneas */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;     /* muestra los 3 puntos */
+  max-height: 2.3em;           /* altura aprox. 2 líneas */
+  word-break: break-word;
+}
+
+/* Al pasar el mouse: quitar límite y permitir scroll */
+.detalle-box span:hover {
+  -webkit-line-clamp: unset;   /* se quita el límite */
+  text-overflow: unset;        /* se quitan los 3 puntos */
+  overflow-y: auto;            /* scroll vertical */
+  max-height: 2.3em;           /* mantiene altura fija */
+}
+
+/* Scroll elegante */
+.detalle-box span::-webkit-scrollbar {
+  width: 6px;
+}
+.detalle-box span::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+.detalle-box span::-webkit-scrollbar-thumb:hover {
+  background: #888;
+}
+
+
+/* Cada fila de detalle */
+.detalle-row {
+  display: grid;
+  grid-template-columns: 80px 1fr; /* etiqueta fija, valor flexible */
+  align-items: flex-start;
+  margin: 4px 0;
+}
+
+/* Etiqueta pequeña y en negrita */
+.detalle-label {
+  font-size: 11px;
+  font-weight: bold;
+  padding-top: 2px;
+}
+
+/* Valor más grande, con clamp */
+.detalle-value {
+  font-size: 14px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;       /* máximo 2 líneas */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 2.4em;           /* 👈 altura fija para 2 líneas */
+  min-height: 2.4em;           /* 👈 asegura que siempre ocupe ese espacio */
+  word-break: break-word;
+  color: #fff;
+}
+
+/* Hover: scroll dentro de la misma altura */
+.detalle-value:hover {
+  -webkit-line-clamp: unset;
+  text-overflow: unset;
+  overflow-y: auto;
+  max-height: 2.4em;  /* mantiene altura constante */
+  min-height: 2.4em;
+}
+
+
+.detalle-value::-webkit-scrollbar {
+  width: 6px;
+}
+.detalle-value::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+.detalle-value::-webkit-scrollbar-thumb:hover {
+  background: #888;
+}

@@ -8,6 +8,7 @@
 {% endblock %}
 
 {% block content %}
+<div id="mensaje-superior" style="display:none;"></div>
 <div class="editar-container">
   <!-- Grid principal con 3 columnas -->
   <div class="editar-layout">
@@ -42,7 +43,7 @@
       <!-- Lista de canciones -->
       <div class="songs-list">
         {% for c in canciones %}
-          <div class="song-row" onclick="seleccionarCancion(this)" data-id="{{ c.id }}">
+          <div class="song-row" onclick="seleccionarCancion(this)" data-id="{{ c.id }}" data-relacion-id="{{ c.id_relacion }}">
             <span class="col-idx">{{ c.posicion|default:"—" }}</span>
             <span class="col-title">
               {% if c.cover_url %}
@@ -60,23 +61,51 @@
 
     <!-- Columna derecha: detalles y tareas -->
     <div class="details-section">
-      <div class="detalle-box">
-        <h3>Datos de la canción</h3>
-        <p><strong>Nombre:</strong> <span id="detalle-nombre">—</span></p>
-        <p><strong>Autor:</strong> <span id="detalle-artistas">—</span></p>
-        <p><strong>Álbum:</strong> <span id="detalle-album">—</span></p>
-        <p><strong>Duración:</strong> <span id="detalle-duracion">—</span></p>
-        <p><strong>Agregada:</strong> <span id="detalle-agregado">—</span></p>
-        <p><strong>Posición:</strong> <span id="detalle-posicion">—</span></p>
+    <div class="detalle-box datos-cancion">
+      <h3>Datos de la canción</h3>
+      <div class="detalle-row">
+        <div class="detalle-label">Nombre:</div>
+        <div class="detalle-value" id="detalle-nombre">—</div>
       </div>
-
-      <div class="detalle-box">
-        <h3>Tareas asignadas</h3>
-        <ul id="lista-tareas">
-          <li>No hay tareas asignadas.</li>
-        </ul>
+      <div class="detalle-row">
+        <div class="detalle-label">Autor:</div>
+        <div class="detalle-value" id="detalle-artistas">—</div>
+      </div>
+      <div class="detalle-row">
+        <div class="detalle-label">Álbum:</div>
+        <div class="detalle-value" id="detalle-album">—</div>
+      </div>
+      <div class="detalle-row">
+        <div class="detalle-label">Duración:</div>
+        <div class="detalle-value" id="detalle-duracion">—</div>
+      </div>
+      <div class="detalle-row">
+        <div class="detalle-label">Agregada:</div>
+        <div class="detalle-value" id="detalle-agregado">—</div>
+      </div>
+      <div class="detalle-row">
+        <div class="detalle-label">Posición:</div>
+        <div class="detalle-value" id="detalle-posicion">—</div>
       </div>
     </div>
+
+    <div class="detalle-box tareas">
+      <h3>Tareas asignadas</h3>
+      <div class="tareas-header sticky">
+        <span class="col-accion">Acción</span>
+        <span class="col-posicion">#</span>
+        <span class="col-estado">Estado</span>
+        <span class="col-fecha">Fecha</span>
+      </div>
+      <div class="tareas-list" id="lista-tareas">
+        <p class="empty">No hay tareas asignadas.</p>
+      </div>
+      <div class="tarea-actions">
+        <button class="action-btn" id="btn-agregar-tarea" disabled>Agregar Tarea</button>
+        <button class="action-btn" id="btn-eliminar-tarea" disabled>Eliminar Tarea</button>
+      </div>
+    </div>
+  </div>
 
     <!-- Columna derecha: acciones -->
    <div class="action-panel">
@@ -86,29 +115,270 @@
         </div>
     </div>
   </div>
+  
+</div>
+
+<div id="modal-tarea" class="modal hidden">
+  <div class="modal-content">
+    <h2>Agregar Tarea</h2>
+
+    <label for="tipo-tarea">Tipo de tarea</label>
+    <select id="tipo-tarea">
+      <option value="posicionar">Posicionar</option>
+      <option value="eliminar">Eliminar</option>
+    </select>
+
+    <div id="campo-posicion" class="campo-dinamico">
+      <label for="posicion">Posición</label>
+      <select id="posicion"></select>
+    </div>
+
+    <div id="campo-fecha" class="campo-dinamico">
+      <label for="fecha-ejecucion">Fecha de ejecución</label>
+      <input type="date" id="fecha-ejecucion">
+    </div>
+
+    <div class="modal-buttons">
+      <button class="action-btn" id="btn-confirmar-tarea">Agregar Tarea</button>
+      <button class="action-btn" id="btn-cancelar-tarea">Cancelar</button>
+    </div>
+  </div>
 </div>
 
 <script>
   const canciones = JSON.parse('{{ canciones_json|escapejs }}');
+  const playlistId = {{ playlist.id_playlist }};
 
-  function seleccionarCancion(el) {
-    document.querySelectorAll('.song-row').forEach(r => r.classList.remove('selected'));
-    el.classList.add('selected');
+  // Variables globales útiles
+  const totalCanciones = {{ playlist.total_canciones|default:0 }};
+  let relacionSeleccionadaId = null; // id_relacion de la canción seleccionada
+  let tareaSeleccionadaId = null;    // para eliminar tarea seleccionada (si implementas selección en la lista)
 
-    const id = el.dataset.id;
-    const c = canciones.find(x => x.id == id);
+  // Abrir modal
+  document.getElementById('btn-agregar-tarea').addEventListener('click', () => {
+    if (!relacionSeleccionadaId) return;
+    abrirModalTarea();
+  });
 
-    if (c) {
-      document.getElementById("detalle-nombre").textContent = c.titulo;
-      document.getElementById("detalle-artistas").textContent = c.artistas;
-      document.getElementById("detalle-album").textContent = c.album;
-      document.getElementById("detalle-duracion").textContent = c.duracion || "—";
-      document.getElementById("detalle-agregado").textContent = c.fecha_agregado ? new Date(c.fecha_agregado).toLocaleDateString() : "—";
-      document.getElementById("detalle-posicion").textContent = c.posicion || "—";
+  // Cerrar modal
+  document.getElementById('btn-cancelar-tarea').addEventListener('click', cerrarModalTarea);
 
-      document.getElementById("lista-tareas").innerHTML = "<li>No hay tareas asignadas.</li>";
+  function abrirModalTarea() {
+    // Tipo por defecto
+    const tipoSelect = document.getElementById('tipo-tarea');
+    tipoSelect.value = 'posicionar';
+    actualizarCamposPorTipo();
+
+    // Posiciones válidas
+    poblarPosiciones(totalCanciones);
+
+    // Fecha por defecto hoy
+    const hoy = new Date().toISOString().slice(0, 10);
+    document.getElementById('fecha-ejecucion').value = hoy;
+
+    document.getElementById('modal-tarea').classList.remove('hidden');
+  }
+
+  function cerrarModalTarea() {
+    document.getElementById('modal-tarea').classList.add('hidden');
+  }
+
+  // Mostrar/ocultar campos según tipo
+  document.getElementById('tipo-tarea').addEventListener('change', actualizarCamposPorTipo);
+
+  function actualizarCamposPorTipo() {
+    const tipo = document.getElementById('tipo-tarea').value;
+    const campoPos = document.getElementById('campo-posicion');
+
+    if (tipo === 'posicionar') {
+      campoPos.classList.remove('hidden');
+    } else if (tipo === 'eliminar') {
+      campoPos.classList.add('hidden');
     }
   }
+
+  // Poblar posiciones 1..N
+  function poblarPosiciones(n) {
+    const sel = document.getElementById('posicion');
+    sel.innerHTML = '';
+    for (let i = 1; i <= Math.max(1, n); i++) {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = i;
+      sel.appendChild(opt);
+    }
+  }
+
+
+// Confirmar agregar tarea
+document.getElementById('btn-confirmar-tarea').addEventListener('click', async () => {
+  const tipo = document.getElementById('tipo-tarea').value;
+  const fecha = document.getElementById('fecha-ejecucion').value;
+  const posicion = document.getElementById('posicion').value;
+
+  const formData = new FormData();
+  formData.append('relacion_id', relacionSeleccionadaId);
+  formData.append('tipo', tipo);
+  formData.append('fecha', fecha);
+  if (tipo === 'posicionar') formData.append('posicion', posicion);
+
+  const csrfToken = getCookie('csrftoken');
+
+  try {
+    const resp = await fetch("{% url 'crear_tarea' playlist.id_playlist %}", {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken },
+      body: formData
+    });
+    const data = await resp.json();
+
+    if (!data.ok) {
+      return; // el backend ya puso el mensaje en la barra superior
+    }
+
+    cerrarModalTarea();
+
+    // 👉 Refrescar lista completa desde el servidor
+    await refrescarTareas(relacionSeleccionadaId);
+
+    await refrescarMensajes();
+
+    // 👉 El mensaje ya lo maneja Django con messages.success
+  } catch (e) {
+    console.error("Error de red al crear la tarea", e);
+  }
+});
+
+// Eliminar tarea
+document.getElementById('btn-eliminar-tarea').addEventListener('click', async () => {
+  if (!tareaSeleccionadaId) return;
+
+  const c = canciones.find(x => x.id_relacion == relacionSeleccionadaId);
+  const tarea = c?.tareas.find(t => t.id_tarea == tareaSeleccionadaId);
+  const usuario = tarea?.usuario || "desconocido";
+
+  const confirmacion = confirm(`¿Está seguro de eliminar esta tarea programada por ${usuario}?`);
+  if (!confirmacion) return;
+
+  const csrfToken = getCookie('csrftoken');
+
+  try {
+    const resp = await fetch(
+      "{% url 'eliminar_tarea' playlist.id_playlist 0 %}".replace("0", tareaSeleccionadaId),
+      {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken }
+      }
+    );
+    const data = await resp.json();
+
+    if (!data.ok) {
+      console.error("Error al eliminar tarea:", data.error || "Respuesta inválida");
+      return;
+    }
+
+    // 👉 Refrescar tareas desde el servidor
+    tareaSeleccionadaId = null;
+    await refrescarTareas(relacionSeleccionadaId);
+
+    await refrescarMensajes();
+
+    // 👉 Deshabilitar botón después de eliminar
+    document.getElementById('btn-eliminar-tarea').disabled = true;
+
+    // El mensaje de éxito lo maneja Django (messages.success)
+    console.log("Tarea eliminada correctamente");
+  } catch (e) {
+    console.error("Error de red al eliminar la tarea:", e);
+  }
+});
+
+async function refrescarTareas(relacionId) {
+  try {
+    const resp = await fetch(`/editar_playlist/${playlistId}/relacion/${relacionId}/tareas/`);
+    const data = await resp.json();
+
+    if (!data.ok) {
+      console.error("Error al refrescar tareas:", data.error || "Respuesta inválida");
+      return;
+    }
+
+    const c = canciones.find(x => x.id_relacion == relacionId);
+    if (c) {
+      c.tareas = data.tareas;   // 👉 actualizamos con lo que viene del servidor
+      renderizarTareas(c);      // 👉 re-renderizamos la lista
+    }
+  } catch (e) {
+    console.error("Error de red al refrescar tareas:", e);
+  }
+}
+
+function renderizarTareas(c) {
+  const lista = document.getElementById("lista-tareas");
+  lista.innerHTML = "";
+
+  if (c.tareas && c.tareas.length > 0) {
+    c.tareas.forEach(t => {
+      const row = document.createElement("div");
+      row.className = "tarea-row";
+      row.dataset.tareaId = t.id_tarea;
+
+      row.innerHTML = `
+        <span class="col-accion">${t.tipo}</span>
+        <span class="col-posicion">${t.posicion || "—"}</span>
+        <span class="col-estado">${t.estado}</span>
+        <span class="col-fecha">${new Date(t.fecha_ejecucion).toLocaleDateString()}</span>
+      `;
+
+      // seleccionar tarea para eliminar
+      row.addEventListener("click", () => {
+        document.querySelectorAll(".tarea-row").forEach(x => x.classList.remove("selected"));
+        row.classList.add("selected");
+        tareaSeleccionadaId = t.id_tarea;
+        document.getElementById("btn-eliminar-tarea").disabled = false;
+      });
+
+      lista.appendChild(row);
+    });
+  } else {
+    lista.innerHTML = "<p class='empty'>No hay tareas asignadas.</p>";
+  }
+}
+
+// Utilidad para CSRF
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+}
+ 
+function seleccionarCancion(el) {
+  // marcar selección
+  document.querySelectorAll('.song-row').forEach(r => r.classList.remove('selected'));
+  el.classList.add('selected');
+
+  // guardar id de relación
+  relacionSeleccionadaId = el.dataset.relacionId;
+  document.getElementById('btn-agregar-tarea').disabled = !relacionSeleccionadaId;
+  document.getElementById('btn-eliminar-tarea').disabled = true;
+
+  // buscar canción en el JSON
+  const id = el.dataset.id;
+  const c = canciones.find(x => x.id == id);
+
+  if (c) {
+    // actualizar detalles
+    document.getElementById("detalle-nombre").textContent = c.titulo;
+    document.getElementById("detalle-artistas").textContent = c.artistas;
+    document.getElementById("detalle-album").textContent = c.album;
+    document.getElementById("detalle-duracion").textContent = c.duracion || "—";
+    document.getElementById("detalle-agregado").textContent = c.fecha_agregado ? new Date(c.fecha_agregado).toLocaleDateString() : "—";
+    document.getElementById("detalle-posicion").textContent = c.posicion || "—";
+
+    // 👉 usar la nueva función para renderizar tareas
+    renderizarTareas(c);
+  }
+}
 
   function volverAtras() {
     window.location.href = "{% url 'lista_playlist_home' %}";
@@ -117,5 +387,30 @@
   function agregarCancion() {
     alert("Funcionalidad de agregar canción en construcción...");
   }
+
+  function mostrarMensajeSuperior(mensaje, tipo) {
+    // tipo puede ser 'success' o 'error'
+    const barra = document.getElementById("mensaje-superior");
+    if (!barra) return;
+
+    barra.textContent = mensaje;
+    barra.className = tipo; // aplica estilos según tipo
+    barra.style.display = "block";
+
+    setTimeout(() => {
+      barra.style.display = "none";
+    }, 3000);
+  }
+
+  async function refrescarMensajes() {
+    try {
+      const resp = await fetch("{% url 'mensajes_bar' %}");
+      const html = await resp.text();
+      document.querySelector(".topbar-center").innerHTML = html;
+    } catch (e) {
+      console.error("Error al refrescar mensajes:", e);
+    }
+  }
+
 </script>
 {% endblock %}
