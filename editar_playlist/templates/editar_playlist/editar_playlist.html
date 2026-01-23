@@ -41,7 +41,7 @@
       </div>
 
       <!-- Lista de canciones -->
-      <div class="songs-list">
+      <div id="lista-canciones" class="songs-list">
         {% for c in canciones %}
           <div class="song-row" onclick="seleccionarCancion(this)" data-id="{{ c.id }}" data-relacion-id="{{ c.id_relacion }}">
             <span class="col-idx">{{ c.posicion|default:"—" }}</span>
@@ -110,7 +110,15 @@
     <!-- Columna derecha: acciones -->
    <div class="action-panel">
         <div class="action-buttons-vertical">
-            <button class="action-btn" onclick="agregarCancion()">Agregar Canción</button>
+          {% if rate_limited %}
+            <button class="action-btn" onclick="abrirModalAgregarCancion()" disabled>
+              Agregar canción (bloqueado)
+            </button>
+          {% else %}
+            <button class="action-btn" onclick="abrirModalAgregarCancion()">
+              Agregar canción
+            </button>
+          {% endif %}
             <button class="action-btn" onclick="volverAtras()">Atrás</button>
         </div>
     </div>
@@ -120,39 +128,56 @@
 
 <div id="modal-tarea" class="modal hidden">
   <div class="modal-content">
-    <h2>Agregar Tarea</h2>
+    <h2>Programar Tarea</h2>
 
-    <label for="tipo-tarea">Tipo de tarea</label>
-    <select id="tipo-tarea">
-      <option value="posicionar">Posicionar</option>
-      <option value="eliminar">Eliminar</option>
-    </select>
-
-    <div id="campo-posicion" class="campo-dinamico">
-      <label for="posicion">Posición</label>
-      <select id="posicion"></select>
+    <!-- Encabezado específico del modal -->
+    <div class="modal-header">
+      <span class="col-accion">Acción</span>
+      <span class="col-posicion">Posición</span>
+      <span class="col-fecha">Fecha de Ejecución</span>
     </div>
 
-    <div id="campo-fecha" class="campo-dinamico">
-      <label for="fecha-ejecucion">Fecha de ejecución</label>
-      <input type="date" id="fecha-ejecucion">
+    <!-- Fila editable específica del modal -->
+    <div class="modal-row">
+      <div class="col-accion">
+        <select id="tipo-tarea">
+          <option value="Posicionar">Posicionar</option>
+          <option value="Eliminar">Eliminar</option>
+          <option value="Agregar">Agregar</option>
+        </select>
+      </div>
+
+      <div class="col-posicion">
+        <select id="posicion"></select>
+      </div>
+
+      <div class="col-fecha">
+        <input type="date" id="fecha-ejecucion">
+      </div>
     </div>
 
-    <div class="modal-buttons">
-      <button class="action-btn" id="btn-confirmar-tarea">Agregar Tarea</button>
+    <!-- Campo extra solo si es "Agregar" -->
+    <div id="col-extra" class="campo-dinamico"></div>
+
+    <!-- Botones -->
+    <div class="modal-actions">
+      <button class="action-btn" id="btn-confirmar-tarea">Confirmar</button>
       <button class="action-btn" id="btn-cancelar-tarea">Cancelar</button>
     </div>
   </div>
 </div>
 
 <script>
-  const canciones = JSON.parse('{{ canciones_json|escapejs }}');
+  let canciones = JSON.parse('{{ canciones_json|escapejs }}');
   const playlistId = {{ playlist.id_playlist }};
 
   // Variables globales útiles
   const totalCanciones = {{ playlist.total_canciones|default:0 }};
   let relacionSeleccionadaId = null; // id_relacion de la canción seleccionada
   let tareaSeleccionadaId = null;    // para eliminar tarea seleccionada (si implementas selección en la lista)
+
+// 👉 Modo del modal
+  let modoAgregarCancion = false;
 
   // Abrir modal
   document.getElementById('btn-agregar-tarea').addEventListener('click', () => {
@@ -166,7 +191,8 @@
   function abrirModalTarea() {
     // Tipo por defecto
     const tipoSelect = document.getElementById('tipo-tarea');
-    tipoSelect.value = 'posicionar';
+    tipoSelect.disabled = false
+    tipoSelect.value = 'Posicionar';
     actualizarCamposPorTipo();
 
     // Posiciones válidas
@@ -181,34 +207,71 @@
 
   function cerrarModalTarea() {
     document.getElementById('modal-tarea').classList.add('hidden');
+    modoAgregarCancion = false; // 👉 resetear modo
   }
 
   // Mostrar/ocultar campos según tipo
   document.getElementById('tipo-tarea').addEventListener('change', actualizarCamposPorTipo);
 
   function actualizarCamposPorTipo() {
-    const tipo = document.getElementById('tipo-tarea').value;
-    const campoPos = document.getElementById('campo-posicion');
+    const tipo = document.getElementById("tipo-tarea").value;
+    const posicionSelect = document.getElementById("posicion");
+    const colExtra = document.getElementById("col-extra");
 
-    if (tipo === 'posicionar') {
-      campoPos.classList.remove('hidden');
-    } else if (tipo === 'eliminar') {
-      campoPos.classList.add('hidden');
+    if (tipo === "Eliminar") {
+      posicionSelect.disabled = true;
+      posicionSelect.innerHTML = `<option value="-">-</option>`;
+      colExtra.innerHTML = "";
+    }
+
+    else if (tipo === "Posicionar") {
+      posicionSelect.disabled = false;
+      poblarPosiciones(totalCanciones);
+      colExtra.innerHTML = "";
+    }
+
+    else if (tipo === "Agregar") {
+      // Solo se ejecuta en modo normal, no en modo agregar canción
+      posicionSelect.disabled = true;
+      posicionSelect.innerHTML = `<option value="-">-</option>`;
+      colExtra.innerHTML = `
+        <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/...">
+      `;
     }
   }
 
-  // Poblar posiciones 1..N
-  function poblarPosiciones(n) {
-    const sel = document.getElementById('posicion');
-    sel.innerHTML = '';
-    for (let i = 1; i <= Math.max(1, n); i++) {
-      const opt = document.createElement('option');
+    // Poblar posiciones 1..N
+  function poblarPosiciones(totalCanciones) {
+    const posicionSelect = document.getElementById("posicion");
+    posicionSelect.innerHTML = ""; // limpiar
+    for (let i = 1; i <= totalCanciones; i++) {
+      const opt = document.createElement("option");
       opt.value = i;
       opt.textContent = i;
-      sel.appendChild(opt);
+      posicionSelect.appendChild(opt);
     }
   }
 
+  function actualizarCamposPorTipo() {
+    const tipo = document.getElementById("tipo-tarea").value;
+    const posicionSelect = document.getElementById("posicion");
+    const colExtra = document.getElementById("col-extra");
+
+    if (tipo === "Eliminar") {
+      posicionSelect.disabled = true;
+      posicionSelect.innerHTML = `<option value="-">-</option>`;
+      colExtra.innerHTML = "";
+    } else if (tipo === "Posicionar") {
+      posicionSelect.disabled = false;
+      colExtra.innerHTML = "";
+    } else if (tipo === "Agregar") {
+      posicionSelect.disabled = true;
+      colExtra.innerHTML = `
+        <label for="url-cancion" class="label-url">URL de la canción</label>
+        <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/..." class="input-url">
+      `;
+    }
+  } 
 
 // Confirmar agregar tarea
 document.getElementById('btn-confirmar-tarea').addEventListener('click', async () => {
@@ -216,11 +279,21 @@ document.getElementById('btn-confirmar-tarea').addEventListener('click', async (
   const fecha = document.getElementById('fecha-ejecucion').value;
   const posicion = document.getElementById('posicion').value;
 
+  // 👉 Si estamos en modo Agregar Canción, usamos otro flujo
+  if (modoAgregarCancion) {
+    await guardarAgregarCancion();
+    return;
+  }
+
+  // 👉 Flujo normal de tareas
   const formData = new FormData();
   formData.append('relacion_id', relacionSeleccionadaId);
   formData.append('tipo', tipo);
   formData.append('fecha', fecha);
-  if (tipo === 'posicionar') formData.append('posicion', posicion);
+
+  if (tipo === 'Posicionar') {
+    formData.append('posicion', posicion);
+  }
 
   const csrfToken = getCookie('csrftoken');
 
@@ -230,6 +303,7 @@ document.getElementById('btn-confirmar-tarea').addEventListener('click', async (
       headers: { 'X-CSRFToken': csrfToken },
       body: formData
     });
+
     const data = await resp.json();
 
     if (!data.ok) {
@@ -240,10 +314,8 @@ document.getElementById('btn-confirmar-tarea').addEventListener('click', async (
 
     // 👉 Refrescar lista completa desde el servidor
     await refrescarTareas(relacionSeleccionadaId);
-
     await refrescarMensajes();
 
-    // 👉 El mensaje ya lo maneja Django con messages.success
   } catch (e) {
     console.error("Error de red al crear la tarea", e);
   }
@@ -362,9 +434,9 @@ function seleccionarCancion(el) {
   document.getElementById('btn-agregar-tarea').disabled = !relacionSeleccionadaId;
   document.getElementById('btn-eliminar-tarea').disabled = true;
 
-  // buscar canción en el JSON
-  const id = el.dataset.id;
-  const c = canciones.find(x => x.id == id);
+  // buscar canción en el JSON usando id_relacion
+  const relacionId = el.dataset.relacionId;
+  const c = canciones.find(x => x.id_relacion == relacionId);
 
   if (c) {
     // actualizar detalles
@@ -375,32 +447,42 @@ function seleccionarCancion(el) {
     document.getElementById("detalle-agregado").textContent = c.fecha_agregado ? new Date(c.fecha_agregado).toLocaleDateString() : "—";
     document.getElementById("detalle-posicion").textContent = c.posicion || "—";
 
-    // 👉 usar la nueva función para renderizar tareas
+    // 👉 renderizar tareas correctas para esa relación
     renderizarTareas(c);
   }
 }
+
 
   function volverAtras() {
     window.location.href = "{% url 'lista_playlist_home' %}";
   }
 
-  function agregarCancion() {
-    alert("Funcionalidad de agregar canción en construcción...");
-  }
+  function abrirModalAgregarCancion() {
+    const tipoSelect = document.getElementById("tipo-tarea");
+    const posicionSelect = document.getElementById("posicion");
+    const colExtra = document.getElementById("col-extra");
 
-  function mostrarMensajeSuperior(mensaje, tipo) {
-    // tipo puede ser 'success' o 'error'
-    const barra = document.getElementById("mensaje-superior");
-    if (!barra) return;
+    // Forzar acción Agregar
+    tipoSelect.value = "Agregar";
+    tipoSelect.disabled = true;
 
-    barra.textContent = mensaje;
-    barra.className = tipo; // aplica estilos según tipo
-    barra.style.display = "block";
+    // Posición habilitada
+    posicionSelect.disabled = false;
+    poblarPosiciones(totalCanciones + 1); // porque agregar aumenta la lista
 
-    setTimeout(() => {
-      barra.style.display = "none";
-    }, 3000);
-  }
+    // Mostrar campo URL
+    colExtra.innerHTML = `
+      <label for="url-cancion" class="label-url">URL de la canción</label>
+      <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/..." class="input-url">
+    `;
+
+    // Fecha por defecto hoy
+    const hoy = new Date().toISOString().slice(0, 10);
+    document.getElementById("fecha-ejecucion").value = hoy;
+
+    // Mostrar modal
+    document.getElementById("modal-tarea").classList.remove("hidden");
+}
 
   async function refrescarMensajes() {
     try {
@@ -411,6 +493,164 @@ function seleccionarCancion(el) {
       console.error("Error al refrescar mensajes:", e);
     }
   }
+
+const tipoTareaSelect = document.getElementById("tipo-tarea");
+const posicionSelect = document.getElementById("posicion");
+const fechaInput = document.getElementById("fecha-ejecucion");
+const colExtra = document.getElementById("col-extra");
+
+// Inicialización visual
+function initModalTarea() {
+  // Rellenar posiciones si no están (ejemplo 1..100)
+  if (posicionSelect.options.length === 0) {
+    for (let i = 1; i <= 100; i++) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = i;
+      posicionSelect.appendChild(opt);
+    }
+  }
+
+  // Estado inicial: "Posicionar"
+  posicionSelect.disabled = false;
+  colExtra.innerHTML = ""; // sin campo extra
+}
+
+
+
+tipoTareaSelect.addEventListener("change", () => {
+  const tipo = tipoTareaSelect.value;
+
+  if (tipo === "Eliminar") {
+    posicionSelect.disabled = true;
+    colExtra.innerHTML = ""; // sin extra
+  } else if (tipo === "Posicionar") {
+    posicionSelect.disabled = false;
+    colExtra.innerHTML = ""; // sin extra
+  } else if (tipo === "Agregar") {
+    posicionSelect.disabled = true;
+    colExtra.innerHTML = `
+      <label for="url-cancion" class="label-url">URL de la canción</label>
+      <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/..." class="input-url">
+    `;
+  }
+});
+
+function abrirModalAgregarCancion() {
+  modoAgregarCancion = true;
+
+  const tipoSelect = document.getElementById("tipo-tarea");
+  tipoSelect.value = "Agregar";
+  tipoSelect.disabled = true;
+
+  posicionSelect.disabled = false;
+  poblarPosiciones(totalCanciones + 1);
+
+  colExtra.innerHTML = `
+    <label for="url-cancion" class="label-url">URL de la canción</label>
+    <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/..." class="input-url">
+  `;
+
+  const hoy = new Date().toISOString().slice(0, 10);
+  fechaInput.value = hoy;
+
+  document.getElementById("modal-tarea").classList.remove("hidden");
+}
+
+async function guardarAgregarCancion() {
+  const url = document.getElementById("url-cancion").value;
+  const posicion = document.getElementById("posicion").value;
+  const fecha = document.getElementById("fecha-ejecucion").value;
+
+  const formData = new FormData();
+  formData.append("url", url);
+  formData.append("posicion", posicion);
+  formData.append("fecha", fecha);
+
+  const csrfToken = getCookie("csrftoken");
+
+  const resp = await fetch(`/editar_playlist/agregar_cancion/${playlistId}/`, {
+    method: "POST",
+    headers: { "X-CSRFToken": csrfToken },
+    body: formData
+  });
+
+  const data = await resp.json();
+
+  if (!data.ok) {
+    await refrescarMensajes();
+
+    // cerramos modal en errores fuertes
+    if (data.error && data.error.toLowerCase().includes("rate limit")) {
+      cerrarModalTarea();
+      modoAgregarCancion = false;
+      location.reload(); // fuerza el popup y bloqueo del botón
+    }
+    
+    return;
+  }
+
+  // ✅ flujo normal
+  cerrarModalTarea();
+  modoAgregarCancion = false;
+
+  await refrescarCanciones();
+  seleccionarCancionPorRelacion(data.relacion_id);
+  await refrescarMensajes();
+}
+
+
+
+function seleccionarCancionPorRelacion(relacionId) {
+  const el = document.querySelector(`.song-row[data-relacion-id="${relacionId}"]`);
+  if (el) {
+    seleccionarCancion(el);
+  }
+}
+
+async function refrescarCanciones() {
+  try {
+    const resp = await fetch(`/editar_playlist/${playlistId}/canciones/`);
+    const data = await resp.json();
+
+    if (!data.ok) {
+      console.error("Error al refrescar canciones:", data.error);
+      return;
+    }
+
+    canciones = data.canciones; // 👉 actualizar array global
+    renderizarListaCanciones(); // 👉 re-renderizar la tabla/lista
+  } catch (e) {
+    console.error("Error de red al refrescar canciones:", e);
+  }
+}
+
+
+function renderizarListaCanciones() {
+  const contenedor = document.getElementById("lista-canciones");
+  contenedor.innerHTML = ""; // limpiar lista
+
+  canciones.forEach(c => {
+    const row = document.createElement("div");
+    row.classList.add("song-row");
+    row.dataset.id = c.id;
+    row.dataset.relacionId = c.id_relacion;
+
+    row.innerHTML = `
+      <span class="col-idx">${c.posicion || "—"}</span>
+      <span class="col-title">
+        ${c.cover_url ? `<img src="${c.cover_url}" alt="Cover ${c.titulo}" class="song-cover">` : ""}
+        ${c.titulo}
+      </span>
+      <span class="col-album">${c.album || ""}</span>
+    `;
+
+    row.addEventListener("click", () => seleccionarCancion(row));
+    contenedor.appendChild(row);
+  });
+}
+
+
 
 </script>
 {% endblock %}

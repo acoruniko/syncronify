@@ -270,11 +270,102 @@
   margin-bottom: 4px;
 }
 
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 100; }
-.modal.hidden { display: none; }
-.modal-content { background: #181818; color: #fff; padding: 1.5rem; border-radius: 10px; width: 420px; }
-.campo-dinamico { margin-top: 1rem; }
-.modal-buttons { display: flex; gap: 10px; margin-top: 1rem; justify-content: flex-end; }
+
+/* --- Contenedor general del modal --- */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+/* --- Caja interna --- */
+.modal-content {
+  background: #181818;
+  color: #fff;
+  padding: 1.5rem;
+  border-radius: 10px;
+  width: 500px; /* ancho suficiente para que todo quede en una línea */
+}
+
+/* --- Header y fila del modal (grid de 3 columnas) --- */
+.modal-header,
+.modal-row {
+  display: grid;
+  grid-template-columns: 0.3fr 0.2fr 0.5fr; /* Acción | Posición | Fecha */
+  gap: 12px;
+  align-items: center;
+}
+
+.modal-header {
+  background: transparent;
+  color: #fff;
+  border-bottom: 1px solid #444;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.modal-row {
+  background: #181818;
+  padding: 6px 8px;
+  margin-bottom: 12px;
+
+}
+
+.modal-row input {
+  align-items: center;
+}
+
+/* --- Inputs y selects dentro del modal --- */
+.modal-row select,
+.modal-row input {
+  width: 80%;
+  padding: 4px 6px; /* reducido para que no se vean más altos que el header */
+  font-size: 14px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #222;
+  color: #fff;
+  line-height: 1.4;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+/* --- Acciones del modal --- */
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.modal-row .col-accion,
+.modal-row .col-posicion,
+.modal-row .col-fecha {
+  display: flex;
+  justify-content: center;   /* centra horizontalmente */
+  align-items: center;       /* centra verticalmente */
+}
+
+
+/* --- Campos dinámicos adicionales --- */
+.campo-dinamico {
+  margin-top: 1rem;
+}
+
+#tipo-tarea option[value="Agregar"] {
+  display: none;
+}
+
 
 .tareas-header, .tarea-row {
   display: grid;
@@ -454,3 +545,36 @@
 .detalle-value::-webkit-scrollbar-thumb:hover {
   background: #888;
 }
+
+#col-extra {
+  width: 100%;
+  margin-top: 10px; /* un poco de espacio respecto a la fila anterior */
+}
+
+#url-cancion {
+  width: 100%;              /* ocupa todo el ancho disponible */
+  box-sizing: border-box;   /* incluye padding/border en el cálculo */
+  padding: 6px;             /* espacio interno */
+  font-size: 14px;          /* tamaño de texto */
+}
+
+.campo-url {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.label-url {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.input-url {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  font-size: 14px;
+}
+

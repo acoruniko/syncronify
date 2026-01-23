@@ -6,15 +6,21 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 from django.core.serializers.json import DjangoJSONEncoder
-from playlists.models import Playlist, PlaylistCancion, Tarea
 from usuarios.models import Usuario
 from django.contrib import messages
 from django.shortcuts import render
+from datetime import timedelta
+from conexion.models import CredencialesSpotify
+from conexion.services import get_spotify_token
+from playlists.models import Playlist, Cancion, PlaylistCancion, Tarea
+import requests
+from django.views.decorators.http import require_GET
 
 def mensajes_bar(request):
     return render(request, "partials/mensajes_bar.html")
 
 
+@login_required
 def editar_playlist_home(request, playlist_id):
     playlist = get_object_or_404(Playlist, id_playlist=playlist_id)
 
@@ -34,10 +40,9 @@ def editar_playlist_home(request, playlist_id):
             segundos = (c.duracion_ms % 60000) // 1000
             duracion_str = f"{minutos}:{segundos:02d}"
 
-        # 👉 ahora con usuario gracias al FK
         tareas_qs = (
             Tarea.objects.filter(relacion=rel)
-            .select_related("usuario")  # ya funciona porque el modelo tiene FK
+            .select_related("usuario")
             .order_by('-fecha_creacion')
         )
 
@@ -63,13 +68,27 @@ def editar_playlist_home(request, playlist_id):
             "tareas": tareas,
         })
 
+    # ⚠️ Verificar rate limit
+    cred = CredencialesSpotify.objects.first()
+    rate_limited = False
+    seconds_remaining = 0
+
+    if cred and cred.rate_limit_until and cred.rate_limit_until > timezone.now():
+        rate_limited = True
+        seconds_remaining = int((cred.rate_limit_until - timezone.now()).total_seconds())
+        messages.warning(
+            request,
+            f"Muchas peticiones a la API de Spotify. Espera {seconds_remaining} segundos."
+        )
+
     return render(request, "editar_playlist/editar_playlist.html", {
         "playlist": playlist,
         "canciones": canciones,
         "canciones_json": json.dumps(canciones, ensure_ascii=False, cls=DjangoJSONEncoder),
+        "rate_limited": rate_limited,
+        "seconds_remaining": seconds_remaining,
     })
 
-from django.views.decorators.http import require_GET
 
 
 @require_GET
@@ -118,16 +137,16 @@ def crear_tarea(request, playlist_id):
     tarea = Tarea(
         relacion=relacion,
         tipo=tipo,
-        estado='pendiente',
+        estado='Pendiente',
         fecha_ejecucion=fecha_ejecucion,
         usuario=request.user if request.user.is_authenticated else None
     )
 
-    if tipo == 'posicionar':
+    if tipo == 'Posicionar':
         if not posicion:
             return JsonResponse({'ok': False, 'error': 'Posición requerida'}, status=400)
         tarea.posicion = int(posicion)
-    elif tipo == 'eliminar':
+    elif tipo == 'Eliminar':
         tarea.posicion = None
     else:
         return JsonResponse({'ok': False, 'error': 'Tipo de tarea inválido'}, status=400)
@@ -148,6 +167,172 @@ def crear_tarea(request, playlist_id):
             'usuario': tarea.usuario.nombre_completo if tarea.usuario else None
         }
     })
+
+@login_required
+def agregar_cancion(request, playlist_id):
+    if request.method != "POST":
+        messages.error(request, "Método no permitido")
+        return JsonResponse({"ok": False, "error": "Método no permitido"})
+
+    try:
+        url = request.POST.get("url")
+        posicion = request.POST.get("posicion")
+        fecha = request.POST.get("fecha")
+
+        if not url or not posicion or not fecha:
+            messages.error(request, "Datos incompletos para agregar canción")
+            return JsonResponse({"ok": False, "error": "Datos incompletos"})
+
+        # 1. Extraer track ID
+        track_id = None
+        if "/track/" in url:
+            try:
+                track_id = url.split("/track/")[1].split("?")[0]
+            except Exception:
+                pass
+
+        if not track_id:
+            messages.error(request, "La URL de la canción no es válida")
+            return JsonResponse({"ok": False, "error": "URL inválida"})
+
+        # 2. Obtener credenciales
+        cred = CredencialesSpotify.objects.first()
+        if not cred:
+            messages.error(request, "No hay credenciales de Spotify configuradas")
+            return JsonResponse({"ok": False, "error": "No hay credenciales de Spotify"})
+
+        # Verificar rate limit
+        if cred.rate_limit_until and cred.rate_limit_until > timezone.now():
+            seconds_remaining = int((cred.rate_limit_until - timezone.now()).total_seconds())
+            messages.warning(request, f"Rate limit activo. Espera {seconds_remaining} segundos.")
+            return JsonResponse({
+                "ok": False,
+                "error": f"Rate limit activo. Espera {seconds_remaining} segundos."
+            })
+
+        token = get_spotify_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # 3. Llamar a la API de Spotify
+        resp = requests.get(
+            f"https://api.spotify.com/v1/tracks/{track_id}",
+            headers=headers,
+            timeout=12
+        )
+
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get("Retry-After", 30))
+            cred.rate_limit_until = timezone.now() + timedelta(seconds=retry_after)
+            cred.save()
+            messages.warning(request, f"Rate limit. Intenta en {retry_after} segundos.")
+            return JsonResponse({
+                "ok": False,
+                "error": f"Rate limit. Intenta en {retry_after} segundos."
+            })
+
+        if resp.status_code != 200:
+            messages.error(request, "La API de Spotify no devolvió datos")
+            return JsonResponse({"ok": False, "error": "La API no devolvió datos"})
+
+        data = resp.json()
+
+        # 4. Crear canción si no existe
+        cover_url = None
+        if data["album"].get("images"):
+            cover_url = data["album"]["images"][0]["url"]
+
+        cancion_obj, _ = Cancion.objects.get_or_create(
+            id_spotify=track_id,
+            defaults={
+                "nombre": data["name"],
+                "artistas": ", ".join([a["name"] for a in data["artists"]]),
+                "album": data["album"]["name"],
+                "duracion_ms": data["duration_ms"],
+                "popularidad": data.get("popularity"),
+                "cover_url": cover_url,
+            }
+        )
+
+        # 5. Crear relación en última posición
+        playlist = Playlist.objects.get(id_playlist=playlist_id)
+        ultima_pos = playlist.playlistcancion_set.count() + 1
+
+        relacion = PlaylistCancion.objects.create(
+            playlist=playlist,
+            cancion=cancion_obj,
+            posicion=ultima_pos,
+            fecha_agregado=timezone.now(),
+            agregado_por=request.user.username
+        )
+
+        # 6. Crear tarea automática
+        Tarea.objects.create(
+            relacion=relacion,
+            tipo="Agregar",
+            posicion=posicion,
+            estado="Pendiente",
+            fecha_ejecucion=fecha,
+            usuario=request.user
+        )
+
+        # 👉 mensaje de éxito
+        messages.success(request, f"Canción '{cancion_obj.nombre}' agregada correctamente a la playlist")
+
+        # 👇 devolvemos también el id de la relación
+        return JsonResponse({
+            "ok": True,
+            "relacion_id": relacion.id_relacion
+        })
+
+    except Exception as e:
+        messages.error(request, f"Error al agregar canción: {str(e)}")
+        return JsonResponse({"ok": False, "error": str(e)})
+
+
+@login_required
+def obtener_canciones(request, playlist_id):
+    playlist = Playlist.objects.get(id_playlist=playlist_id)
+    relaciones = playlist.playlistcancion_set.select_related("cancion").order_by("posicion")
+
+    canciones = []
+    for rel in relaciones:
+        c = rel.cancion
+        duracion_str = None
+        if c.duracion_ms:
+            minutos = c.duracion_ms // 60000
+            segundos = (c.duracion_ms % 60000) // 1000
+            duracion_str = f"{minutos}:{segundos:02d}"
+
+        tareas_qs = (
+            Tarea.objects.filter(relacion=rel)
+            .select_related("usuario")
+            .order_by('-fecha_creacion')
+        )
+
+        tareas = [{
+            "id_tarea": t.id_tarea,
+            "tipo": t.tipo,
+            "estado": t.estado,
+            "fecha_ejecucion": t.fecha_ejecucion.isoformat(),
+            "posicion": t.posicion,
+            "usuario": t.usuario.nombre_completo if t.usuario else None
+        } for t in tareas_qs]
+
+        canciones.append({
+            "id": c.id_cancion,
+            "titulo": c.nombre,
+            "artistas": c.artistas,
+            "album": c.album,
+            "duracion": duracion_str,
+            "fecha_agregado": rel.fecha_agregado.isoformat() if rel.fecha_agregado else None,
+            "posicion": rel.posicion,
+            "cover_url": getattr(c, "cover_url", None),
+            "id_relacion": rel.id_relacion,
+            "tareas": tareas,
+        })
+
+    return JsonResponse({"ok": True, "canciones": canciones})
+
 
 
 @login_required
