@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'importar',
     'lista_playlist',
     'editar_playlist',
+    "sincronizar_playlist",
     'playlists.apps.PlaylistsConfig',
     'usuarios.apps.UsuariosConfig',
 ]

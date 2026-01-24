@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Sincronizar Playlist{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'sincronizar_playlist/css/sincronizar_playlist.css' %}">
+{% endblock %}
+
+{% block content %}
+<div id="mensaje-superior" style="display:none;"></div>
+<div class="sincronizar-container">
+  <!-- Grid principal con 2 columnas -->
+  <div class="sincronizar-layout">
+
+    <!-- Columna izquierda: lista de tareas -->
+    <div class="tareas-section">
+      <div class="playlist-header">
+        <h1>Sincronizar Playlist</h1>
+      </div>
+
+      <!-- Encabezado sticky -->
+      <div class="tasks-header sticky">
+        <span class="col-accion">Acción</span>
+        <span class="col-posicion">#</span>
+        <span class="col-title">Título / Álbum</span>
+        <span class="col-playlist">Playlist</span>
+        <span class="col-estado">Estado</span>
+        <span class="col-usuario">Creador</span>
+        <span class="col-fecha">Fecha de Ejecución</span>
+      </div>
+
+      <!-- Lista de tareas -->
+      <div id="lista-tareas" class="tasks-list">
+        {% for t in tareas %}
+          <div class="task-row" 
+               data-id="{{ t.id_tarea }}" 
+               data-usuario="{{ t.usuario }}">
+            <span class="col-accion">{{ t.accion }}</span>
+            <span class="col-posicion">{{ t.posicion|default:"—" }}</span>
+            <span class="col-title">
+              {% if t.cover_url %}
+                <img src="{{ t.cover_url }}" alt="Cover {{ t.titulo }}" class="task-cover">
+              {% endif %}
+              <div class="title-block">
+                <span class="titulo">{{ t.titulo }}</span>
+                <small class="album">{{ t.album }}</small>
+              </div>
+            </span>
+            <span class="col-playlist">{{ t.playlist }}</span>
+            <span class="col-estado">{{ t.estado }}</span>
+            <span class="col-usuario">{{ t.usuario }}</span>
+            <span class="col-fecha">{{ t.fecha_ejecucion }}</span>
+          </div>
+        {% empty %}
+          <p class="empty">No hay tareas pendientes para este mes.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Columna derecha: selector y acciones -->
+    <div class="action-panel">
+      <div class="detalle-box selector-mes">
+        <h3>Seleccionar Mes</h3>
+        <form method="get" action="{% url 'sincronizar_playlist_home' %}">
+            <div class="modal-row">
+            <input type="month" id="sel-month" name="month_year"
+                    value="{{ current_year }}-{{ current_month|stringformat:'02d' }}"
+                    onchange="this.form.submit()">
+            </div>
+        </form>
+      </div>
+
+      <div class="detalle-box acciones">
+        <div class="tarea-actions">
+          {% if rate_limited %}
+            <button class="action-btn primary" id="btn-sincronizar" disabled>
+              Sincronizar ahora (bloqueado)
+            </button>
+          {% else %}
+            <button class="action-btn primary" id="btn-sincronizar" disabled>
+              Sincronizar ahora
+            </button>
+          {% endif %}
+          <button class="action-btn" id="btn-eliminar-tarea" disabled>Eliminar tarea</button>
+        </div>
+      </div>
+
+      <div class="detalle-box volver">
+        <button class="action-btn" onclick="volverAtras()">Atrás</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let tareaSeleccionadaId = null;
+  let tareaSeleccionadaUsuario = null;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const filas = document.querySelectorAll(".task-row");
+    filas.forEach(fila => {
+      fila.addEventListener("click", (e) => {
+        e.stopPropagation(); 
+        seleccionarTarea(fila);
+      });
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".task-row") && !e.target.closest(".action-btn")) {
+        deseleccionarTarea();
+      }
+    });
+  });
+
+  function seleccionarTarea(fila) {
+    document.querySelectorAll(".task-row.selected").forEach(el => el.classList.remove("selected"));
+    fila.classList.add("selected");
+
+    tareaSeleccionadaId = fila.dataset.id;  
+    tareaSeleccionadaUsuario = fila.dataset.usuario;
+
+    document.getElementById("btn-sincronizar").disabled = false;
+    document.getElementById("btn-eliminar-tarea").disabled = false;
+  }
+
+  function deseleccionarTarea() {
+    document.querySelectorAll(".task-row.selected").forEach(el => el.classList.remove("selected"));
+    tareaSeleccionadaId = null;
+    tareaSeleccionadaUsuario = null;
+
+    document.getElementById("btn-sincronizar").disabled = true;
+    document.getElementById("btn-eliminar-tarea").disabled = true;
+  }
+
+  function volverAtras() {
+    window.location.href = "{% url 'lista_playlist_home' %}";
+  }
+
+  document.getElementById('btn-eliminar-tarea').addEventListener('click', async () => {
+    if (!tareaSeleccionadaId) return;
+
+    const usuario = tareaSeleccionadaUsuario || "desconocido";
+    const confirmacion = confirm(`¿Está seguro de eliminar esta tarea creada por ${usuario}?`);
+    if (!confirmacion) return;
+
+    const csrfToken = getCookie('csrftoken');
+
+    try {
+        const resp = await fetch(
+          "{% url 'eliminar_tarea' 0 %}".replace("0", tareaSeleccionadaId),
+          {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken }
+          }
+        );
+        const data = await resp.json();
+
+        if (data.ok) {
+          window.location.reload();
+        } else {
+          console.error("Error al eliminar tarea:", data.error || "Respuesta inválida");
+        }
+    } catch (e) {
+        console.error("Error de red al eliminar la tarea:", e);
+    }
+  });
+</script>
+
+{% endblock %}

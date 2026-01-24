@@ -46,7 +46,9 @@
         <button id="btn-eliminar" class="action-btn" disabled>Eliminar</button>
       </div>
       <div class="action-buttons-vertical general-actions">
-        <button id="btn-sincronizar" class="action-btn">Sincronizar con Spotify</button>
+        <button type="button" class="action-btn" onclick="window.location.href='{% url 'sincronizar_playlist_home' %}'">
+          Sincronizar con Spotify
+        </button>
         <form action="{% url 'importar_playlists' %}" method="get">
           {% if rate_limited %}
             <button type="submit" class="action-btn primary" disabled>
@@ -154,5 +156,6 @@
       window.location.reload(); // recarga para mostrar mensaje de error
     });
   });
+
 </script>
 {% endblock %}
