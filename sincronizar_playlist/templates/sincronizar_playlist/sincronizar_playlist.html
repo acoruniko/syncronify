@@ -8,9 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<div id="mensaje-superior" style="display:none;"></div>
 <div class="sincronizar-container">
-  <!-- Grid principal con 2 columnas -->
   <div class="sincronizar-layout">
 
     <!-- Columna izquierda: lista de tareas -->
@@ -19,7 +17,6 @@
         <h1>Sincronizar Playlist</h1>
       </div>
 
-      <!-- Encabezado sticky -->
       <div class="tasks-header sticky">
         <span class="col-accion">Acción</span>
         <span class="col-posicion">#</span>
@@ -30,11 +27,11 @@
         <span class="col-fecha">Fecha de Ejecución</span>
       </div>
 
-      <!-- Lista de tareas -->
       <div id="lista-tareas" class="tasks-list">
         {% for t in tareas %}
           <div class="task-row" 
                data-id="{{ t.id_tarea }}" 
+               data-playlist="{{ t.playlist_id }}"
                data-usuario="{{ t.usuario }}">
             <span class="col-accion">{{ t.accion }}</span>
             <span class="col-posicion">{{ t.posicion|default:"—" }}</span>
@@ -58,15 +55,15 @@
       </div>
     </div>
 
-    <!-- Columna derecha: selector y acciones -->
+    <!-- Columna derecha: acciones -->
     <div class="action-panel">
       <div class="detalle-box selector-mes">
         <h3>Seleccionar Mes</h3>
         <form method="get" action="{% url 'sincronizar_playlist_home' %}">
             <div class="modal-row">
-            <input type="month" id="sel-month" name="month_year"
-                    value="{{ current_year }}-{{ current_month|stringformat:'02d' }}"
-                    onchange="this.form.submit()">
+              <input type="month" id="sel-month" name="month_year"
+                     value="{{ current_year }}-{{ current_month|stringformat:'02d' }}"
+                     onchange="this.form.submit()">
             </div>
         </form>
       </div>
@@ -97,6 +94,7 @@
 <script>
   let tareaSeleccionadaId = null;
   let tareaSeleccionadaUsuario = null;
+  let tareaSeleccionadaPlaylist = null;
 
   document.addEventListener("DOMContentLoaded", () => {
     const filas = document.querySelectorAll(".task-row");
@@ -120,6 +118,9 @@
 
     tareaSeleccionadaId = fila.dataset.id;  
     tareaSeleccionadaUsuario = fila.dataset.usuario;
+    tareaSeleccionadaPlaylist = fila.dataset.playlist;
+
+    console.log("Fila seleccionada:", tareaSeleccionadaId, "playlist seleccionada:", tareaSeleccionadaPlaylist);
 
     document.getElementById("btn-sincronizar").disabled = false;
     document.getElementById("btn-eliminar-tarea").disabled = false;
@@ -129,6 +130,7 @@
     document.querySelectorAll(".task-row.selected").forEach(el => el.classList.remove("selected"));
     tareaSeleccionadaId = null;
     tareaSeleccionadaUsuario = null;
+    tareaSeleccionadaPlaylist = null;
 
     document.getElementById("btn-sincronizar").disabled = true;
     document.getElementById("btn-eliminar-tarea").disabled = true;
@@ -138,6 +140,22 @@
     window.location.href = "{% url 'lista_playlist_home' %}";
   }
 
+  function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+          const cookies = document.cookie.split(';');
+          for (let i = 0; i < cookies.length; i++) {
+              const cookie = cookies[i].trim();
+              if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                  cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                  break;
+              }
+          }
+      }
+      return cookieValue;
+  }
+
+  // 👉 Eliminar tarea
   document.getElementById('btn-eliminar-tarea').addEventListener('click', async () => {
     if (!tareaSeleccionadaId) return;
 
@@ -164,6 +182,33 @@
         }
     } catch (e) {
         console.error("Error de red al eliminar la tarea:", e);
+    }
+  });
+
+  // 👉 Sincronizar tarea
+  document.getElementById('btn-sincronizar').addEventListener('click', async () => {
+    if (!tareaSeleccionadaId || !tareaSeleccionadaPlaylist) return;
+
+    const csrfToken = getCookie('csrftoken');
+    const urlFinal = `/sincronizar/tareas/${tareaSeleccionadaPlaylist}/${tareaSeleccionadaId}/sincronizar/`;
+
+    console.log("URL final:", urlFinal);
+
+    try {
+      const resp = await fetch(urlFinal, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken }
+      });
+
+      const data = await resp.json();
+
+      if (data.ok) {
+        window.location.reload();
+      } else {
+        console.error("Error al sincronizar:", data.error || "Respuesta inválida");
+      }
+    } catch (e) {
+      console.error("Error de red al sincronizar la tarea:", e);
     }
   });
 </script>

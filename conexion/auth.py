@@ -10,6 +10,8 @@ def build_authorize_url(state: str = "sync") -> str:
     SCOPES = [
         "playlist-read-private",
         "playlist-read-collaborative",
+        "playlist-modify-public",
+        "playlist-modify-private",
         "user-read-email",
         "user-read-private",
     ]
@@ -23,6 +25,7 @@ def build_authorize_url(state: str = "sync") -> str:
     }
     from urllib.parse import urlencode
     return f"{settings.SPOTIFY_AUTH_URL}?{urlencode(params)}"
+
 
 
 def _basic_auth_header() -> str:

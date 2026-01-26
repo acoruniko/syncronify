@@ -43,7 +43,7 @@ def editar_playlist_home(request, playlist_id):
         tareas_qs = (
             Tarea.objects.filter(relacion=rel)
             .select_related("usuario")
-            .order_by('-fecha_creacion')
+            .order_by('fecha_ejecucion', '-fecha_creacion')
         )
 
         tareas = [{
@@ -98,7 +98,7 @@ def obtener_tareas(request, playlist_id, relacion_id):
     tareas_qs = (
         Tarea.objects.filter(relacion=relacion)
         .select_related("usuario")
-        .order_by('-fecha_creacion')
+        .order_by('fecha_ejecucion', '-fecha_creacion')
     )
 
     tareas = [{
@@ -306,7 +306,7 @@ def obtener_canciones(request, playlist_id):
         tareas_qs = (
             Tarea.objects.filter(relacion=rel)
             .select_related("usuario")
-            .order_by('-fecha_creacion')
+            .order_by('fecha_ejecucion', '-fecha_creacion')
         )
 
         tareas = [{

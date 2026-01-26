@@ -66,7 +66,6 @@ class PlaylistCancion(models.Model):
 
     class Meta:
         db_table = "playlist_canciones"
-        unique_together = ("playlist", "cancion")
         managed = False
 
 class Tarea(models.Model):
