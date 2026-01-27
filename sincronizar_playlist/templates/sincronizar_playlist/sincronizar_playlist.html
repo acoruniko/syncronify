@@ -45,7 +45,7 @@
               </div>
             </span>
             <span class="col-playlist">{{ t.playlist }}</span>
-            <span class="col-estado">{{ t.estado }}</span>
+            <span class="col-estado" data-estado="{{ t.estado }}">{{ t.estado }}</span>
             <span class="col-usuario">{{ t.usuario }}</span>
             <span class="col-fecha">{{ t.fecha_ejecucion }}</span>
           </div>
@@ -96,20 +96,164 @@
   let tareaSeleccionadaUsuario = null;
   let tareaSeleccionadaPlaylist = null;
 
+  let tareas = [];
+  let sortConfig = { column: null, asc: true };
+
+  // Configuración de ciclos
+  const ciclosAccion = [
+    ["Agregar", "Posicionar", "Eliminar"],
+    ["Posicionar", "Eliminar", "Agregar"],
+    ["Eliminar", "Agregar", "Posicionar"]
+  ];
+  let cicloAccionIndex = 0;
+
+  const ciclosEstado = [
+    ["Pendiente", "Completado", "Error"],
+    ["Completado", "Error", "Pendiente"],
+    ["Error", "Pendiente", "Completado"]
+  ];
+  let cicloEstadoIndex = 0;
+
+  // 👉 Parse de fecha dd-mm-yyyy
+  const parseFecha = f => {
+    if (!f) return new Date(0);
+    const [dd, mm, yyyy] = f.split("-");
+    return new Date(yyyy, mm - 1, dd);
+  };
+
+  // 👉 Orden secundario dentro de cada grupo (elige "fecha" o "titulo")
+  const ordenarPorFecha = (arr) =>
+    arr.slice().sort((x, y) => parseFecha(x.fecha_ejecucion) - parseFecha(y.fecha_ejecucion));
+
+  const ordenarPorTitulo = (arr) =>
+    arr.slice().sort((x, y) => x.titulo.localeCompare(y.titulo));
+
+  // 👉 Agrupa por campo y concatena según orden
+  function agruparYConcatenar(items, campo, orden, criterioSecundario = "titulo") {
+    const buckets = new Map(orden.map(k => [k, []]));
+    for (const it of items) {
+      if (buckets.has(it[campo])) buckets.get(it[campo]).push(it);
+      else {
+        // valores fuera del orden esperado van al final
+        if (!buckets.has("__otros__")) buckets.set("__otros__", []);
+        buckets.get("__otros__").push(it);
+      }
+    }
+    const ordenar = criterioSecundario === "fecha" ? ordenarPorFecha : ordenarPorTitulo;
+    const resultado = [];
+    for (const key of orden) resultado.push(...ordenar(buckets.get(key)));
+    if (buckets.has("__otros__")) resultado.push(...ordenar(buckets.get("__otros__")));
+    return resultado;
+  }
+
+  // 👉 Solo estas columnas son ordenables
+  const columnasOrdenables = ["col-title", "col-playlist", "col-usuario", "col-fecha", "col-accion", "col-estado"];
+
   document.addEventListener("DOMContentLoaded", () => {
+    // 👉 Inicializar array tareas desde las filas renderizadas
     const filas = document.querySelectorAll(".task-row");
-    filas.forEach(fila => {
-      fila.addEventListener("click", (e) => {
-        e.stopPropagation(); 
+    tareas = Array.from(filas).map(fila => ({
+      id_tarea: fila.dataset.id,
+      playlist_id: fila.dataset.playlist,
+      usuario: fila.dataset.usuario,
+      accion: fila.querySelector(".col-accion").textContent.trim(),
+      posicion: fila.querySelector(".col-posicion").textContent.trim(),
+      titulo: fila.querySelector(".titulo").textContent.trim(),
+      album: fila.querySelector(".album").textContent.trim(),
+      playlist: fila.querySelector(".col-playlist").textContent.trim(),
+      estado: fila.querySelector(".col-estado").textContent.trim(),
+      fecha_ejecucion: fila.querySelector(".col-fecha").textContent.trim(),
+      cover_url: fila.querySelector(".task-cover")?.src || null
+    }));
+
+    // 👉 Delegación de eventos: selección de filas
+    document.getElementById("lista-tareas").addEventListener("click", (e) => {
+      const fila = e.target.closest(".task-row");
+      if (fila) {
+        e.stopPropagation();
         seleccionarTarea(fila);
-      });
+      }
     });
 
+    // 👉 Deseleccionar si haces click fuera
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".task-row") && !e.target.closest(".action-btn")) {
         deseleccionarTarea();
       }
     });
+
+
+    // 👉 Ordenamiento al hacer click en headers
+    // 👉 Solo estas columnas son ordenables
+    const columnasOrdenables = ["col-title", "col-playlist", "col-usuario", "col-fecha", "col-accion", "col-estado"];
+
+    document.querySelectorAll(".tasks-header span").forEach(header => {
+      header.addEventListener("click", () => {
+        const col = header.classList[0];
+        if (!columnasOrdenables.includes(col)) return;
+
+        // toggle asc/desc solo para columnas normales
+        const esCiclica = (col === "col-accion" || col === "col-estado");
+        if (!esCiclica) {
+          if (sortConfig.column === col) {
+            sortConfig.asc = !sortConfig.asc;
+          } else {
+            sortConfig.column = col;
+            sortConfig.asc = true;
+          }
+        } else {
+          sortConfig.column = col; // asc no aplica
+        }
+
+        if (col === "col-accion") {
+          // ciclo actual y rotación para el próximo click
+          const ordenAccion = ciclosAccion[cicloAccionIndex];
+          cicloAccionIndex = (cicloAccionIndex + 1) % ciclosAccion.length;
+
+          tareas = agruparYConcatenar(tareas, "accion", ordenAccion, "fecha");
+
+        } else if (col === "col-estado") {
+          const ordenEstado = ciclosEstado[cicloEstadoIndex];
+          cicloEstadoIndex = (cicloEstadoIndex + 1) % ciclosEstado.length;
+  
+          tareas = agruparYConcatenar(tareas, "estado", ordenEstado, "fecha");
+
+        } else {
+          // columnas normales: asc/desc
+          tareas.sort((a, b) => {
+            let valA, valB;
+            switch (col) {
+              case "col-fecha":
+                valA = parseFecha(a.fecha_ejecucion);
+                valB = parseFecha(b.fecha_ejecucion);
+                break;
+              case "col-title":
+                valA = a.titulo.toLowerCase();
+                valB = b.titulo.toLowerCase();
+                break;
+              case "col-playlist":
+                valA = a.playlist.toLowerCase();
+                valB = b.playlist.toLowerCase();
+                break;
+              case "col-usuario":
+                valA = a.usuario.toLowerCase();
+                valB = b.usuario.toLowerCase();
+                break;
+              default:
+                valA = (a[col.replace("col-", "")] || "").toString().toLowerCase();
+                valB = (b[col.replace("col-", "")] || "").toString().toLowerCase();
+            }
+            if (valA < valB) return sortConfig.asc ? -1 : 1;
+            if (valA > valB) return sortConfig.asc ? 1 : -1;
+            return 0;
+          });
+        }
+
+        renderizarListaTareas();
+        actualizarIndicadores();
+      });
+    });
+
   });
 
   function seleccionarTarea(fila) {
@@ -122,7 +266,8 @@
 
     console.log("Fila seleccionada:", tareaSeleccionadaId, "playlist seleccionada:", tareaSeleccionadaPlaylist);
 
-    document.getElementById("btn-sincronizar").disabled = false;
+    const rateLimited = "{{ rate_limited|yesno:'true,false' }}" === "true";
+    document.getElementById("btn-sincronizar").disabled = rateLimited;
     document.getElementById("btn-eliminar-tarea").disabled = false;
   }
 
@@ -141,18 +286,18 @@
   }
 
   function getCookie(name) {
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-          const cookies = document.cookie.split(';');
-          for (let i = 0; i < cookies.length; i++) {
-              const cookie = cookies[i].trim();
-              if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                  cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                  break;
-              }
-          }
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
       }
-      return cookieValue;
+    }
+    return cookieValue;
   }
 
   // 👉 Eliminar tarea
@@ -166,22 +311,19 @@
     const csrfToken = getCookie('csrftoken');
 
     try {
-        const resp = await fetch(
-          "{% url 'eliminar_tarea' 0 %}".replace("0", tareaSeleccionadaId),
-          {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrfToken }
-          }
-        );
-        const data = await resp.json();
+      const resp = await fetch(
+        "{% url 'eliminar_tarea' 0 %}".replace("0", tareaSeleccionadaId),
+        { method: 'POST', headers: { 'X-CSRFToken': csrfToken } }
+      );
+      const data = await resp.json();
 
-        if (data.ok) {
-          window.location.reload();
-        } else {
-          console.error("Error al eliminar tarea:", data.error || "Respuesta inválida");
-        }
+      if (data.ok) {
+        window.location.reload();
+      } else {
+        console.error("Error al eliminar tarea:", data.error || "Respuesta inválida");
+      }
     } catch (e) {
-        console.error("Error de red al eliminar la tarea:", e);
+      console.error("Error de red al eliminar la tarea:", e);
     }
   });
 
@@ -202,15 +344,83 @@
 
       const data = await resp.json();
 
-      if (data.ok) {
+      if (data.ok || data.rate_limited) {
         window.location.reload();
       } else {
         console.error("Error al sincronizar:", data.error || "Respuesta inválida");
       }
+
+      await refrescarMensajes();
     } catch (e) {
       console.error("Error de red al sincronizar la tarea:", e);
     }
   });
+
+  async function refrescarMensajes() {
+    try {
+      const resp = await fetch("{% url 'mensajes_bar' %}");
+      const html = await resp.text();
+      document.querySelector(".topbar-center").innerHTML = html;
+    } catch (e) {
+      console.error("Error al refrescar mensajes:", e);
+    }
+  }
+
+  function renderizarListaTareas() {
+    const lista = document.getElementById("lista-tareas");
+    lista.innerHTML = "";
+
+    if (tareas.length === 0) {
+      lista.innerHTML = '<p class="empty">No hay tareas pendientes para este mes.</p>';
+      return;
+    }
+
+    tareas.forEach(t => {
+      const row = document.createElement("div");
+      row.className = "task-row";
+      row.dataset.id = t.id_tarea;
+      row.dataset.playlist = t.playlist_id;
+      row.dataset.usuario = t.usuario;
+
+      row.innerHTML = `
+        <span class="col-accion">${t.accion}</span>
+        <span class="col-posicion">${t.posicion ?? "—"}</span>
+        <span class="col-title">
+          ${t.cover_url ? `<img src="${t.cover_url}" alt="Cover ${t.titulo}" class="task-cover">` : ""}
+          <div class="title-block">
+            <span class="titulo">${t.titulo}</span>
+            <small class="album">${t.album}</small>
+          </div>
+        </span>
+        <span class="col-playlist">${t.playlist}</span>
+        <span class="col-estado" data-estado="${t.estado}">${t.estado}</span>
+        <span class="col-usuario">${t.usuario}</span>
+        <span class="col-fecha">${t.fecha_ejecucion}</span>
+      `;
+      lista.appendChild(row);
+    });
+  }
+  document.querySelectorAll(".tasks-header span").forEach(header => { header.dataset.label = header.textContent.trim(); });
+  function actualizarIndicadores() {
+    document.querySelectorAll(".tasks-header span").forEach(header => {
+      const col = Array.from(header.classList).find(c => c.startsWith("col-"));
+      header.textContent = header.dataset.label; // restaurar texto base
+
+      if (col === sortConfig.column) {
+        if (col === "col-accion") {
+          const ordenAccion = ciclosAccion[(cicloAccionIndex + ciclosAccion.length - 1) % ciclosAccion.length];
+          header.textContent = ` ⮕ ${ordenAccion[0]}`;
+        } else if (col === "col-estado") {
+          const ordenEstado = ciclosEstado[(cicloEstadoIndex + ciclosEstado.length - 1) % ciclosEstado.length];
+          header.textContent = ` ⮕ ${ordenEstado[0]}`;
+        } else {
+          header.textContent += sortConfig.asc ? " ↑" : " ↓";
+        }
+      }
+    });
+  }
+
 </script>
+
 
 {% endblock %}

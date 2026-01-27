@@ -26,10 +26,12 @@ def editar_playlist_home(request, playlist_id):
 
     relaciones = (
         PlaylistCancion.objects
-        .filter(playlist_id=playlist_id)
+        .filter(playlist_id=playlist_id, estado__in=["activo", "pendiente"])
         .select_related('cancion')
         .order_by('posicion')
     )
+
+    total_con_pendientes = relaciones.count()
 
     canciones = []
     for rel in relaciones:
@@ -87,6 +89,7 @@ def editar_playlist_home(request, playlist_id):
         "canciones_json": json.dumps(canciones, ensure_ascii=False, cls=DjangoJSONEncoder),
         "rate_limited": rate_limited,
         "seconds_remaining": seconds_remaining,
+        "total_con_pendientes": total_con_pendientes,
     })
 
 
@@ -127,6 +130,13 @@ def crear_tarea(request, playlist_id):
         return JsonResponse({'ok': False, 'error': 'Faltan campos obligatorios'}, status=400)
 
     relacion = get_object_or_404(PlaylistCancion, id_relacion=relacion_id, playlist_id=playlist_id)
+
+
+
+
+    if relacion.estado not in ["activo", "pendiente"]:
+        messages.error(request, "No puedes crear tareas sobre una relación eliminada.")
+        return JsonResponse({'ok': False, 'error': 'Relación no activa'}, status=400)
 
     try:
         fecha_ejecucion = datetime.strptime(fecha_str, '%Y-%m-%d')
@@ -253,32 +263,32 @@ def agregar_cancion(request, playlist_id):
             }
         )
 
-        # 5. Crear relación en última posición
+        # 5. Crear relación en estado pendiente
         playlist = Playlist.objects.get(id_playlist=playlist_id)
-        ultima_pos = playlist.playlistcancion_set.count() + 1
+        agregado_por=request.user.username
 
         relacion = PlaylistCancion.objects.create(
             playlist=playlist,
             cancion=cancion_obj,
-            posicion=ultima_pos,
+            posicion=None,                  # 👈 posición inválida hasta que se ejecute la tarea
             fecha_agregado=timezone.now(),
-            agregado_por=request.user.username
+            agregado_por=agregado_por,      # 👈 correcto según API (si disponible)
+            estado="pendiente"              # 👈 nuevo campo
         )
 
         # 6. Crear tarea automática
         Tarea.objects.create(
             relacion=relacion,
             tipo="Agregar",
-            posicion=posicion,
+            posicion=posicion,              # 👈 aquí sí guardamos la posición solicitada
             estado="Pendiente",
             fecha_ejecucion=fecha,
             usuario=request.user
         )
 
         # 👉 mensaje de éxito
-        messages.success(request, f"Canción '{cancion_obj.nombre}' agregada correctamente a la playlist")
+        messages.success(request, f"Canción '{cancion_obj.nombre}' registrada como pendiente en la playlist")
 
-        # 👇 devolvemos también el id de la relación
         return JsonResponse({
             "ok": True,
             "relacion_id": relacion.id_relacion
@@ -289,10 +299,18 @@ def agregar_cancion(request, playlist_id):
         return JsonResponse({"ok": False, "error": str(e)})
 
 
+
 @login_required
 def obtener_canciones(request, playlist_id):
     playlist = Playlist.objects.get(id_playlist=playlist_id)
-    relaciones = playlist.playlistcancion_set.select_related("cancion").order_by("posicion")
+    relaciones = ( 
+        playlist.playlistcancion_set 
+        .filter(estado__in=["activo", "pendiente"])
+        .select_related("cancion") 
+        .order_by("posicion") 
+        )
+    
+    total_con_pendientes = relaciones.count()
 
     canciones = []
     for rel in relaciones:
@@ -331,7 +349,7 @@ def obtener_canciones(request, playlist_id):
             "tareas": tareas,
         })
 
-    return JsonResponse({"ok": True, "canciones": canciones})
+    return JsonResponse({"ok": True, "canciones": canciones, "total_con_pendientes": total_con_pendientes,})
 
 
 

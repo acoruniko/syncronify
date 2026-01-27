@@ -170,6 +170,7 @@
 <script>
   let canciones = JSON.parse('{{ canciones_json|escapejs }}');
   const playlistId = {{ playlist.id_playlist }};
+  let totalCancionesConPendientes = {{ total_con_pendientes }};
 
   // Variables globales útiles
   const totalCanciones = {{ playlist.total_canciones|default:0 }};
@@ -196,7 +197,7 @@
     actualizarCamposPorTipo();
 
     // Posiciones válidas
-    poblarPosiciones(totalCanciones);
+    poblarPosiciones(totalCancionesConPendientes);
 
     // Fecha por defecto hoy
     const hoy = new Date().toISOString().slice(0, 10);
@@ -457,31 +458,25 @@ function seleccionarCancion(el) {
     window.location.href = "{% url 'lista_playlist_home' %}";
   }
 
-  function abrirModalAgregarCancion() {
-    const tipoSelect = document.getElementById("tipo-tarea");
-    const posicionSelect = document.getElementById("posicion");
-    const colExtra = document.getElementById("col-extra");
 
-    // Forzar acción Agregar
-    tipoSelect.value = "Agregar";
-    tipoSelect.disabled = true;
+function abrirModalAgregarCancion() {
+  modoAgregarCancion = true;
+  const tipoSelect = document.getElementById("tipo-tarea");
+  tipoSelect.value = "Agregar";
+  tipoSelect.disabled = true;
 
-    // Posición habilitada
-    posicionSelect.disabled = false;
-    poblarPosiciones(totalCanciones + 1); // porque agregar aumenta la lista
+  posicionSelect.disabled = false;
+  poblarPosiciones(totalCancionesConPendientes + 1);
 
-    // Mostrar campo URL
-    colExtra.innerHTML = `
-      <label for="url-cancion" class="label-url">URL de la canción</label>
-      <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/..." class="input-url">
-    `;
+  colExtra.innerHTML = `
+    <label for="url-cancion" class="label-url">URL de la canción</label>
+    <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/..." class="input-url">
+  `;
 
-    // Fecha por defecto hoy
-    const hoy = new Date().toISOString().slice(0, 10);
-    document.getElementById("fecha-ejecucion").value = hoy;
+  const hoy = new Date().toISOString().slice(0, 10);
+  fechaInput.value = hoy;
 
-    // Mostrar modal
-    document.getElementById("modal-tarea").classList.remove("hidden");
+  document.getElementById("modal-tarea").classList.remove("hidden");
 }
 
   async function refrescarMensajes() {
@@ -535,27 +530,6 @@ tipoTareaSelect.addEventListener("change", () => {
     `;
   }
 });
-
-function abrirModalAgregarCancion() {
-  modoAgregarCancion = true;
-
-  const tipoSelect = document.getElementById("tipo-tarea");
-  tipoSelect.value = "Agregar";
-  tipoSelect.disabled = true;
-
-  posicionSelect.disabled = false;
-  poblarPosiciones(totalCanciones + 1);
-
-  colExtra.innerHTML = `
-    <label for="url-cancion" class="label-url">URL de la canción</label>
-    <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/..." class="input-url">
-  `;
-
-  const hoy = new Date().toISOString().slice(0, 10);
-  fechaInput.value = hoy;
-
-  document.getElementById("modal-tarea").classList.remove("hidden");
-}
 
 async function guardarAgregarCancion() {
   const url = document.getElementById("url-cancion").value;
@@ -617,6 +591,8 @@ async function refrescarCanciones() {
       console.error("Error al refrescar canciones:", data.error);
       return;
     }
+
+    totalCancionesConPendientes = data.total_con_pendientes;
 
     canciones = data.canciones; // 👉 actualizar array global
     renderizarListaCanciones(); // 👉 re-renderizar la tabla/lista

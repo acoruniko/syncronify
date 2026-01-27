@@ -63,6 +63,7 @@ class PlaylistCancion(models.Model):
     posicion = models.IntegerField(blank=True, null=True)
     fecha_agregado = models.DateTimeField(blank=True, null=True)
     agregado_por = models.CharField(max_length=100, blank=True, null=True)
+    estado = models.CharField( max_length=20, default="activo" )
 
     class Meta:
         db_table = "playlist_canciones"
