@@ -115,15 +115,15 @@ def importar_playlist_confirmar(request, playlist_id):
 
         # 4. Guardar relaciones playlist ↔ canciones
         for idx, (cancion_obj, item) in enumerate(canciones_guardadas, start=1):
-            PlaylistCancion.objects.get_or_create(
+            PlaylistCancion.objects.create(
                 playlist=playlist_obj,
                 cancion=cancion_obj,
-                defaults={
-                    "posicion": idx,  # ✅ posición real según el orden del arreglo
-                    "fecha_agregado": item.get("added_at"),
-                    "agregado_por": item["added_by"]["id"] if item.get("added_by") else None,
-                }
+                posicion=idx,  # ✅ posición real según el orden del arreglo
+                fecha_agregado=item.get("added_at"),
+                agregado_por=item["added_by"]["id"] if item.get("added_by") else None,
+                estado="activo"
             )
+
 
         # 5. Mensaje de éxito
         messages.success(request, f"La playlist '{playlist_obj.nombre}' fue importada con éxito.")

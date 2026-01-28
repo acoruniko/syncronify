@@ -11,6 +11,7 @@ from conexion.models import CredencialesSpotify
 from conexion.services import get_spotify_token
 from playlists.models import Playlist, Cancion, PlaylistCancion, Tarea
 import requests
+from sincronizar_playlist.services import execute_tarea
 
 
 @login_required
@@ -96,7 +97,7 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
     tarea = get_object_or_404(Tarea, id_tarea=tarea_id, relacion__playlist_id=playlist_id)
     cred = CredencialesSpotify.objects.first()
 
-    # ⚠️ Verificar rate limit
+    # ⚠️ Verificar rate limit antes de ejecutar
     if cred and cred.rate_limit_until and cred.rate_limit_until > timezone.now():
         seconds_remaining = int((cred.rate_limit_until - timezone.now()).total_seconds())
         messages.error(
@@ -110,169 +111,10 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
             "seconds_remaining": seconds_remaining,
         })
 
-    tarea.intentos += 1
+    # 👉 Delegar ejecución al servicio
+    estado = execute_tarea(tarea.id_tarea)
 
-    try:
-        token = get_spotify_token()
-        headers = {"Authorization": f"Bearer {token}"}
-        playlist_spotify_id = tarea.relacion.playlist.id_spotify
-        track_spotify_id = tarea.relacion.cancion.id_spotify
-
-        tipo = tarea.tipo.strip().lower()  # 👈 normalizamos para evitar espacios o mayúsculas raras
-
-        # 👉 POSICIONAR
-        if tipo == "posicionar":
-            old_pos = tarea.relacion.posicion
-            new_pos = tarea.posicion
-            total_items = PlaylistCancion.objects.filter(
-                playlist=tarea.relacion.playlist,
-                estado="activo"
-            ).count()
-
-            range_start = old_pos - 1
-            if new_pos == total_items:
-                insert_before = total_items
-            elif new_pos > old_pos:
-                insert_before = new_pos
-            else:
-                insert_before = new_pos - 1
-
-            payload = {
-                "range_start": range_start,
-                "insert_before": insert_before,
-                "range_length": 1
-            }
-            resp = requests.put(
-                f"https://api.spotify.com/v1/playlists/{playlist_spotify_id}/tracks",
-                headers=headers,
-                json=payload,
-                timeout=12
-            )
-            resp.raise_for_status()
-
-            # ✅ Actualizar BD
-            if new_pos > old_pos:
-                PlaylistCancion.objects.filter(
-                    playlist=tarea.relacion.playlist,
-                    estado="activo",
-                    posicion__gt=old_pos,
-                    posicion__lte=new_pos
-                ).update(posicion=F("posicion") - 1)
-            elif new_pos < old_pos:
-                PlaylistCancion.objects.filter(
-                    playlist=tarea.relacion.playlist,
-                    estado="activo",
-                    posicion__gte=new_pos,
-                    posicion__lt=old_pos
-                ).update(posicion=F("posicion") + 1)
-
-            tarea.relacion.posicion = new_pos
-            tarea.relacion.save(update_fields=["posicion"])
-
-        # 👉 ELIMINAR
-        elif tipo == "eliminar":
-            # 1. Eliminar en Spotify (borra todas las ocurrencias del track)
-            payload = {
-                "tracks": [
-                    {
-                        "uri": f"spotify:track:{track_spotify_id}"
-                    }
-                ]
-            }
-            resp = requests.delete(
-                f"https://api.spotify.com/v1/playlists/{playlist_spotify_id}/tracks",
-                headers=headers,
-                json=payload,
-                timeout=12
-            )
-            resp.raise_for_status()
-
-            # 2. Actualizar BD: marcar todas las relaciones con ese track como eliminadas
-            PlaylistCancion.objects.filter(
-                playlist=tarea.relacion.playlist,
-                cancion__id_spotify=track_spotify_id,
-                estado="activo"
-            ).update(estado="eliminado")
-
-            playlist = tarea.relacion.playlist
-
-            # 3. Reordenar posiciones de las canciones activas
-            activas = PlaylistCancion.objects.filter(
-                playlist=playlist,
-                estado="activo"
-            ).order_by("posicion")
-
-            for i, rel in enumerate(activas, start=1):
-                rel.posicion = i
-                rel.save(update_fields=["posicion"])
-
-            # 4. Actualizar total_canciones
-            playlist.total_canciones = activas.count()
-            playlist.save(update_fields=["total_canciones"])
-
-
-        # 👉 AGREGAR
-        elif tipo == "agregar":
-            playlist = tarea.relacion.playlist
-            new_pos = tarea.posicion
-
-            # 1. Agregar en Spotify (queda al final)
-            payload_add = {"uris": [f"spotify:track:{track_spotify_id}"]}
-            resp_add = requests.post(
-                f"https://api.spotify.com/v1/playlists/{playlist_spotify_id}/tracks",
-                headers=headers,
-                json=payload_add,
-                timeout=12
-            )
-            resp_add.raise_for_status()
-
-            # 2. Reposicionar en Spotify (de último a la posición solicitada)
-            total_items = PlaylistCancion.objects.filter(
-                playlist=playlist,
-                estado="activo"
-            ).count() + 1  # incluye la nueva
-            range_start = total_items - 1
-            insert_before = new_pos - 1
-
-            payload_move = {
-                "range_start": range_start,
-                "insert_before": insert_before,
-                "range_length": 1
-            }
-            resp_move = requests.put(
-                f"https://api.spotify.com/v1/playlists/{playlist_spotify_id}/tracks",
-                headers=headers,
-                json=payload_move,
-                timeout=12
-            )
-            resp_move.raise_for_status()
-
-            # ✅ Actualizar BD
-            PlaylistCancion.objects.filter(
-                playlist=playlist,
-                estado="activo",
-                posicion__gte=new_pos
-            ).update(posicion=F("posicion") + 1)
-
-            tarea.relacion.estado = "activo"
-            tarea.relacion.posicion = new_pos
-            tarea.relacion.save(update_fields=["estado", "posicion"])
-
-            playlist.total_canciones = PlaylistCancion.objects.filter(
-                playlist=playlist,
-                estado="activo"
-            ).count()
-            playlist.save(update_fields=["total_canciones"])
-
-        else:
-            messages.error(request, f"Tipo de tarea inválido: {tarea.tipo}")
-            return JsonResponse({"ok": False, "error": "Tipo de tarea inválido"}, status=400)
-
-        # ✅ Si todo salió bien
-        tarea.estado = "Completado"
-        tarea.mensaje_error = None
-        tarea.save()
-
+    if estado == "Completado":
         messages.success(request, f"Tarea '{tarea.tipo}' ejecutada correctamente.")
         return JsonResponse({
             "ok": True,
@@ -281,19 +123,16 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
             "rate_limited": False,
             "seconds_remaining": 0,
         })
-
-    except Exception as e:
-        tarea.estado = "Error"
-        tarea.mensaje_error = str(e)
-        tarea.save()
+    else:
         messages.error(request, f"Error al ejecutar tarea: {tarea.mensaje_error}")
         return JsonResponse({
             "ok": False,
-            "error": str(e),
+            "error": tarea.mensaje_error,
             "intentos": tarea.intentos,
             "rate_limited": False,
             "seconds_remaining": 0,
         })
+
 
 
 

@@ -90,8 +90,9 @@ class Tarea(models.Model):
 
 
     # Campos opcionales según tipo
-    url_cancion = models.TextField(null=True, blank=True)  # no se usa aquí, pero lo dejamos por consistencia
+    url_cancion = models.TextField(null=True, blank=True)  
     posicion = models.IntegerField(null=True, blank=True)
+    posicion_anterior = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.tipo} - rel:{self.relacion_id} - {self.estado}"

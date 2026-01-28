@@ -62,7 +62,7 @@
     30px   /* # */
     minmax(360px, 1fr)  /* Título/Álbum */
     minmax(310px, 1fr)  /* Playlist */
-    90px   /* Estado */
+    110px   /* Estado */
     120px  /* Creador */
     90px;  /* Fecha */
   align-items: center;
@@ -151,6 +151,7 @@
   object-fit: cover;
   flex: 0 0 auto;
 }
+
 
 .title-block {
   display: flex;
@@ -280,4 +281,9 @@
   line-height: 1.4;
   box-sizing: border-box;
   text-align: center;
+}
+
+.tasks-list.disabled { 
+  pointer-events: none; /* no permite clicks */ 
+  opacity: 0.6; /* se ve atenuada */
 }

@@ -257,6 +257,11 @@
   });
 
   function seleccionarTarea(fila) {
+
+    if (document.getElementById('lista-tareas').classList.contains('disabled')) { 
+      return; 
+    }
+
     document.querySelectorAll(".task-row.selected").forEach(el => el.classList.remove("selected"));
     fila.classList.add("selected");
 
@@ -331,10 +336,14 @@
   document.getElementById('btn-sincronizar').addEventListener('click', async () => {
     if (!tareaSeleccionadaId || !tareaSeleccionadaPlaylist) return;
 
+    const btn = document.getElementById('btn-sincronizar');
+    btn.disabled = true;
+    btn.textContent = "Sincronizando…";
+    document.getElementById('lista-tareas').classList.add('disabled');
+    document.getElementById('btn-eliminar-tarea').disabled = true;
+
     const csrfToken = getCookie('csrftoken');
     const urlFinal = `/sincronizar/tareas/${tareaSeleccionadaPlaylist}/${tareaSeleccionadaId}/sincronizar/`;
-
-    console.log("URL final:", urlFinal);
 
     try {
       const resp = await fetch(urlFinal, {
@@ -348,13 +357,24 @@
         window.location.reload();
       } else {
         console.error("Error al sincronizar:", data.error || "Respuesta inválida");
+        // 👉 Restaurar estado si hubo error
+        btn.disabled = false;
+        btn.textContent = "Sincronizar ahora";
+        document.getElementById('lista-tareas').classList.remove('disabled');
+        window.location.reload();
       }
 
       await refrescarMensajes();
     } catch (e) {
       console.error("Error de red al sincronizar la tarea:", e);
+      // 👉 Restaurar estado si hubo error de red
+      btn.disabled = false;
+      btn.textContent = "Sincronizar ahora";
+      document.getElementById('lista-tareas').classList.remove('disabled');
     }
   });
+
+
 
   async function refrescarMensajes() {
     try {

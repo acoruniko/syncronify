@@ -125,6 +125,7 @@ def crear_tarea(request, playlist_id):
     tipo = request.POST.get('tipo')
     posicion = request.POST.get('posicion')
     fecha_str = request.POST.get('fecha')
+    
 
     if not relacion_id or not tipo or not fecha_str:
         return JsonResponse({'ok': False, 'error': 'Faltan campos obligatorios'}, status=400)
@@ -283,7 +284,8 @@ def agregar_cancion(request, playlist_id):
             posicion=posicion,              # 👈 aquí sí guardamos la posición solicitada
             estado="Pendiente",
             fecha_ejecucion=fecha,
-            usuario=request.user
+            usuario=request.user,
+            url_cancion=url
         )
 
         # 👉 mensaje de éxito
