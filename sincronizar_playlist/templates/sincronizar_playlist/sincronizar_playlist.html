@@ -27,7 +27,7 @@
         <span class="col-fecha">Fecha de Ejecución</span>
       </div>
 
-      <div id="lista-tareas" class="tasks-list">
+      <div id="lista-tareas" class="tasks-list scroll-container">
         {% for t in tareas %}
           <div class="task-row" 
                data-id="{{ t.id_tarea }}" 
@@ -323,14 +323,18 @@
       const data = await resp.json();
 
       if (data.ok) {
+        // 👉 Recargar toda la página para refrescar lista y mensajes
         window.location.reload();
       } else {
         console.error("Error al eliminar tarea:", data.error || "Respuesta inválida");
+        window.location.reload(); // también recarga para mostrar mensajes de error
       }
     } catch (e) {
       console.error("Error de red al eliminar la tarea:", e);
+      window.location.reload(); // recarga para mostrar mensajes de error
     }
   });
+
 
   // 👉 Sincronizar tarea
   document.getElementById('btn-sincronizar').addEventListener('click', async () => {

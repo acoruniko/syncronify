@@ -17,7 +17,7 @@
 
     <!-- Columna central: lista + paginación -->
     <div class="playlist-column">
-      <div class="playlist-list-vertical {% if rate_limited %}disabled{% endif %}">
+      <div class="scroll-container playlist-list-vertical {% if rate_limited %}disabled{% endif %}">
         {% for playlist in playlists %}
           <div class="playlist-row" onclick="selectPlaylist(this)" 
                data-id="{{ playlist.id }}" data-name="{{ playlist.name }}">
@@ -37,10 +37,10 @@
       <!-- Paginación debajo de la lista -->
       <div class="nav-buttons">
         {% if page_number > 1 %}
-          <a href="?page={{ page_number|add:-1 }}" class="nav-btn">Anterior</a>
+          <a href="?page={{ page_number|add:-1 }}" class="action-btn">Anterior</a>
         {% endif %}
         {% if has_next %}
-          <a href="?page={{ page_number|add:1 }}" class="nav-btn">Siguiente</a>
+          <a href="?page={{ page_number|add:1 }}" class="action-btn">Siguiente</a>
         {% endif %}
       </div>
     </div>

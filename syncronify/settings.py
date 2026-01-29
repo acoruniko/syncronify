@@ -70,6 +70,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'usuarios.middleware.ValidarSesionMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -162,4 +163,26 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute='*/5'),
     },
 }
+
+
+# URL de login por defecto (usada por @login_required)
+LOGIN_URL = 'login'
+
+# URL a la que se redirige después de un login exitoso
+LOGIN_REDIRECT_URL = 'lista_playlist_home'
+
+# URL a la que se redirige después de un logout
+LOGOUT_REDIRECT_URL = 'login'
+
+# Tiempo de vida de la cookie de sesión (en segundos)
+# 2 semanas (1209600 segundos)
+SESSION_COOKIE_AGE = 1209600  
+
+# Si quieres que la sesión se borre al cerrar el navegador
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # pon True si prefieres que se cierre
+
+# Seguridad extra
+SESSION_COOKIE_SECURE = False  # pon True en producción con HTTPS
+CSRF_COOKIE_SECURE = False     # igual que arriba
+
 

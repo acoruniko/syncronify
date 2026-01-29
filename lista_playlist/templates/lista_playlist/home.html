@@ -17,7 +17,7 @@
 
     <!-- Columna central: lista -->
     <div class="playlist-column">
-      <div class="playlist-list-vertical">
+      <div class="playlist-list-vertical scroll-container">
         {% for playlist in playlists %}
           <div class="playlist-row" 
                onclick="selectPlaylist(this)" 
@@ -46,7 +46,7 @@
         <button id="btn-eliminar" class="action-btn" disabled>Eliminar</button>
       </div>
       <div class="action-buttons-vertical general-actions">
-        <button type="button" class="action-btn" onclick="window.location.href='{% url 'sincronizar_playlist_home' %}'">
+        <button type="button" class="action-btn primary" onclick="window.location.href='{% url 'sincronizar_playlist_home' %}'">
           Sincronizar con Spotify
         </button>
         <form action="{% url 'importar_playlists' %}" method="get">
@@ -60,7 +60,7 @@
             </button>
           {% endif %}
         </form>
-        <button id="btn-logs" class="action-btn">Logs de la aplicación</button>
+        <button id="btn-logs" class="action-btn primary">Logs de la aplicación</button>
       </div>
     </div>
   </div>

@@ -41,7 +41,7 @@
       </div>
 
       <!-- Lista de canciones -->
-      <div id="lista-canciones" class="songs-list">
+      <div id="lista-canciones" class="songs-list scroll-container">
         {% for c in canciones %}
           <div class="song-row" onclick="seleccionarCancion(this)" data-id="{{ c.id }}" data-relacion-id="{{ c.id_relacion }}">
             <span class="col-idx">{{ c.posicion|default:"—" }}</span>
@@ -97,7 +97,7 @@
         <span class="col-estado">Estado</span>
         <span class="col-fecha">Fecha</span>
       </div>
-      <div class="tareas-list" id="lista-tareas">
+      <div class="tareas-list scroll-container" id="lista-tareas">
         <p class="empty">No hay tareas asignadas.</p>
       </div>
       <div class="tarea-actions">
@@ -111,11 +111,11 @@
    <div class="action-panel">
         <div class="action-buttons-vertical">
           {% if rate_limited %}
-            <button class="action-btn" onclick="abrirModalAgregarCancion()" disabled>
+            <button class="action-btn primary" onclick="abrirModalAgregarCancion()" disabled>
               Agregar canción (bloqueado)
             </button>
           {% else %}
-            <button class="action-btn" onclick="abrirModalAgregarCancion()">
+            <button class="action-btn primary" onclick="abrirModalAgregarCancion()">
               Agregar canción
             </button>
           {% endif %}
@@ -448,8 +448,8 @@ function seleccionarCancion(el) {
     document.getElementById("detalle-agregado").textContent = c.fecha_agregado ? new Date(c.fecha_agregado).toLocaleDateString() : "—";
     document.getElementById("detalle-posicion").textContent = c.posicion || "—";
 
-    // 👉 renderizar tareas correctas para esa relación
-    renderizarTareas(c);
+    // 👉 refresca y renderiza tareas correctas para esa relación
+    refrescarTareas(relacionId);
   }
 }
 

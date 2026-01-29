@@ -97,6 +97,18 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
     tarea = get_object_or_404(Tarea, id_tarea=tarea_id, relacion__playlist_id=playlist_id)
     cred = CredencialesSpotify.objects.first()
 
+    # ⚠️ Verificar si ya está completada 
+    if tarea.estado == "Completado": 
+        messages.info(request, f"La tarea '{tarea.tipo}' ya fue completada previamente.") 
+        return JsonResponse({ 
+            "ok": False, 
+            "error": "La tarea ya está completada.", 
+            "estado": tarea.estado, 
+            "intentos": tarea.intentos, 
+            "rate_limited": False, 
+            "seconds_remaining": 0, 
+            })
+    
     # ⚠️ Verificar rate limit antes de ejecutar
     if cred and cred.rate_limit_until and cred.rate_limit_until > timezone.now():
         seconds_remaining = int((cred.rate_limit_until - timezone.now()).total_seconds())

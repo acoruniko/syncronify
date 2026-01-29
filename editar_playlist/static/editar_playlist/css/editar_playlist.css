@@ -5,6 +5,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding-top: 10px;
 }
 
 /* Grid principal: playlist izquierda + detalles centro + acciones derecha */
@@ -25,8 +26,6 @@
   border-radius: 10px;
   box-sizing: border-box;
 }
-
-
 
 /* Encabezado estilo Spotify */
 .playlist-header {
@@ -141,6 +140,7 @@
   font-size: 13px;
   border-bottom: 1px solid #2a2a2a;
 }
+
 .songs-list {
   display: flex;
   flex-direction: column;
@@ -148,16 +148,8 @@
   overflow-y: auto;
   width: 100%;
 }
-.songs-list::-webkit-scrollbar {
-  width: 8px;
-}
-.songs-list::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 4px;
-}
-.songs-list::-webkit-scrollbar-thumb:hover {
-  background: #888;
-}
+
+
 .song-row {
   padding: 8px;
   border-radius: 6px;
@@ -218,24 +210,6 @@
   align-items: center;
   gap: 10px;
 }
-.action-btn {
-  background-color: #1db954;
-  color: #000000;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 30px; /* pill shape */
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-.action-btn:hover {
-  background-color: #1ed760;
-}
-.action-btn.primary {
-  background-color: #1db954;
-  font-weight: bold;
-}
 
 /* Panel central: detalles y tareas */
 .details-section {
@@ -252,7 +226,7 @@
 }
 .detalle-box h3 {
   margin-top: 0;
-  font-size: 16px;
+  font-size: 18px;
   color: #1db954;
 }
 .detalle-box p {
@@ -293,6 +267,16 @@
   padding: 1.5rem;
   border-radius: 10px;
   width: 500px; /* ancho suficiente para que todo quede en una línea */
+  margin-top: 0;
+}
+
+.modal-content h2{
+  background: linear-gradient(180deg, #4a4a4a, #121212);
+  color: #fff;
+  padding: 1.5rem;
+  border-radius: 10px;
+  margin-top: 0px;
+  margin-bottom: 6px;
 }
 
 /* --- Header y fila del modal (grid de 3 columnas) --- */
@@ -377,6 +361,8 @@
 .tareas-header {
   font-weight: bold;
   border-bottom: 1px solid #ccc;
+  text-align: center;
+  padding-right: 18px;
 }
 
 .tarea-row {
@@ -397,17 +383,7 @@
   overflow-y: auto;
   width: 100%;
   margin-bottom: 1rem;
-}
-
-.tareas-list::-webkit-scrollbar {
-  width: 8px;
-}
-.tareas-list::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 4px;
-}
-.tareas-list::-webkit-scrollbar-thumb:hover {
-  background: #888;
+  text-align: center;
 }
 
 /* Fila de tarea con estilo idéntico a canción */
@@ -550,6 +526,9 @@
   width: 100%;
   margin-top: 10px; /* un poco de espacio respecto a la fila anterior */
 }
+.col-estado {
+  width: 130px
+}
 
 #url-cancion {
   width: 100%;              /* ocupa todo el ancho disponible */
@@ -565,7 +544,7 @@
 
 .label-url {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 12px;
   font-weight: 600;
   font-size: 14px;
   color: #ffffff;
@@ -576,5 +555,28 @@
   box-sizing: border-box;
   padding: 8px;
   font-size: 14px;
+}
+
+.scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-container::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 0;
+}
+.scroll-container:hover::-webkit-scrollbar {
+  background-color: transparent;
+}
+.scroll-container:hover::-webkit-scrollbar-thumb {
+  background-color: #555;
+}
+.scroll-container:hover::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+.scroll-container:hover::-webkit-scrollbar-thumb:hover {
+  background-color: #888;
 }
 

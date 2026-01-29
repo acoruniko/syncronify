@@ -6,6 +6,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding-top: 10px;
 }
 
 /* Layout: tareas izquierda + acciones derecha */
@@ -240,7 +241,7 @@
 
 .detalle-box h3 {
   margin-top: 0;
-  font-size: 16px;
+  font-size: 18px;
   color: #1db954;
 }
 
@@ -249,20 +250,6 @@
   flex-direction: column;
   gap: 10px;
 }
-
-.action-btn {
-  background-color: #1db954;
-  color: #000000;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 30px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-.action-btn:hover { background-color: #1ed760; }
-.action-btn:disabled { background-color: #555; cursor: not-allowed; }
 
 .selector-mes .modal-row {
   background: #181818;
@@ -286,4 +273,27 @@
 .tasks-list.disabled { 
   pointer-events: none; /* no permite clicks */ 
   opacity: 0.6; /* se ve atenuada */
+}
+
+.scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-container::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 0;
+}
+.scroll-container:hover::-webkit-scrollbar {
+  background-color: transparent;
+}
+.scroll-container:hover::-webkit-scrollbar-thumb {
+  background-color: #555;
+}
+.scroll-container:hover::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+.scroll-container:hover::-webkit-scrollbar-thumb:hover {
+  background-color: #888;
 }

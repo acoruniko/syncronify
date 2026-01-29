@@ -53,35 +53,6 @@
   width: 800px;
 }
 
-/* Scroll estilo Spotify */
-.playlist-list-vertical::-webkit-scrollbar {
-  width: 8px;
-}
-.playlist-list-vertical::-webkit-scrollbar-track {
-  background: transparent;
-}
-.playlist-list-vertical::-webkit-scrollbar-thumb {
-  background: transparent;
-}
-.playlist-list-vertical:hover::-webkit-scrollbar-thumb {
-  background: #555;
-}
-.playlist-list-vertical::-webkit-scrollbar-thumb:hover {
-  background: #888;
-}
-.playlist-list-vertical {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-.playlist-list-vertical:hover {
-  scrollbar-color: #555 transparent;
-}
-
-.playlist-list-vertical.disabled {
-  pointer-events: none;   /* bloquea clicks */
-  opacity: 0.5;           /* se ve deshabilitado */
-}
-
 /* Fila de playlist */
 .playlist-row {
   display: flex;
@@ -128,27 +99,11 @@
 
 /* Paginación debajo de la lista */
 .nav-buttons {
+  font-size: 13px;
   margin-top: 1rem;
   display: flex;
   justify-content: center;
   gap: 1rem;
-}
-
-.nav-buttons.disabled {
-  pointer-events: none;   /* bloquea clicks */
-  opacity: 0.5;           /* se ven deshabilitados */
-}
-
-.nav-btn {
-  background: #1db954;
-  color: #fff;
-  padding: 6px 12px;
-  border-radius: 4px;
-  text-decoration: none;
-  font-size: 14px;
-}
-.nav-btn:hover {
-  background: #1ed760;
 }
 
 /* Columna derecha: acciones */
@@ -163,8 +118,32 @@
 
 /* Botones en columna */
 .action-buttons-vertical {
+  font-size: 13px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
+}
+
+.scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-container::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 0;
+}
+.scroll-container:hover::-webkit-scrollbar {
+  background-color: transparent;
+}
+.scroll-container:hover::-webkit-scrollbar-thumb {
+  background-color: #555;
+}
+.scroll-container:hover::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+.scroll-container:hover::-webkit-scrollbar-thumb:hover {
+  background-color: #888;
 }
