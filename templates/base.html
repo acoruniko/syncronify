@@ -55,7 +55,7 @@
 
         <div class="topbar-right">
             {% if request.user.is_authenticated %}
-                <span class="user">{{ request.user.username }}</span>
+                <span class="user">{{ request.user.nombre_completo }}</span>
                 <a href="{% url 'logout' %}" class="logout-btn">Cerrar sesión</a>
             {% else %}
                 <a href="{% url 'login' %}" class="logout-btn">Iniciar sesión</a>

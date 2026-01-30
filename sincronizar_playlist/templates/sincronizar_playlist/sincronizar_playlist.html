@@ -357,6 +357,12 @@
 
       const data = await resp.json();
 
+      if (data.requires_auth) {
+        // 👉 Redirigir al login de Spotify
+        window.location.href = data.auth_url;
+        return;
+      }
+
       if (data.ok || data.rate_limited) {
         window.location.reload();
       } else {
@@ -377,7 +383,6 @@
       document.getElementById('lista-tareas').classList.remove('disabled');
     }
   });
-
 
 
   async function refrescarMensajes() {

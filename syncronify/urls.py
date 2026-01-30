@@ -24,6 +24,7 @@ urlpatterns = [
     path("lista_playlist/", include("lista_playlist.urls")),
     path('editar_playlist/', include('editar_playlist.urls')),
     path("sincronizar/", include("sincronizar_playlist.urls")),
+    path('logs/', include('logs.urls')),
     path("spotify/login", login_spotify, name="spotify_login"),
     path("spotify/callback", spotify_callback, name="spotify_callback"),
     path("conexion/", include("conexion.urls")),

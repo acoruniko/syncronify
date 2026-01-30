@@ -2,23 +2,27 @@
 import json
 from datetime import datetime
 from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseRedirect
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 from django.core.serializers.json import DjangoJSONEncoder
 from usuarios.models import Usuario
 from django.contrib import messages
-from django.shortcuts import render
 from datetime import timedelta
+from conexion.auth import build_authorize_url
 from conexion.models import CredencialesSpotify
-from conexion.services import get_spotify_token
+from conexion.services import get_spotify_token, check_credentials, check_rate_limit, handle_429
 from playlists.models import Playlist, Cancion, PlaylistCancion, Tarea
 import requests
 from django.views.decorators.http import require_GET
+import json
+from conexion.services import check_rate_limit
+from django.shortcuts import redirect
+import requests
+
 
 def mensajes_bar(request):
     return render(request, "partials/mensajes_bar.html")
-
 
 @login_required
 def editar_playlist_home(request, playlist_id):
@@ -70,18 +74,14 @@ def editar_playlist_home(request, playlist_id):
             "tareas": tareas,
         })
 
-    # ⚠️ Verificar rate limit
+    # ⚠️ Verificar rate limit usando servicio
     cred = CredencialesSpotify.objects.first()
-    rate_limited = False
     seconds_remaining = 0
+    rate_limited = False
 
-    if cred and cred.rate_limit_until and cred.rate_limit_until > timezone.now():
-        rate_limited = True
-        seconds_remaining = int((cred.rate_limit_until - timezone.now()).total_seconds())
-        messages.warning(
-            request,
-            f"Muchas peticiones a la API de Spotify. Espera {seconds_remaining} segundos."
-        )
+    if cred:
+        seconds_remaining = check_rate_limit(request, cred, show_message=False) or 0
+        rate_limited = seconds_remaining > 0
 
     return render(request, "editar_playlist/editar_playlist.html", {
         "playlist": playlist,
@@ -91,6 +91,7 @@ def editar_playlist_home(request, playlist_id):
         "seconds_remaining": seconds_remaining,
         "total_con_pendientes": total_con_pendientes,
     })
+
 
 
 
@@ -165,7 +166,14 @@ def crear_tarea(request, playlist_id):
     tarea.save()
 
     # 👉 Registrar mensaje en la barra superior
-    messages.success(request, "Tarea agregada correctamente")
+    messages.success(
+        request,
+        f"La tarea {tarea.tipo} de '{relacion.cancion.nombre}' "
+        f"en la playlist '{relacion.playlist.nombre}' "
+        f"para el {tarea.fecha_ejecucion.strftime('%d/%m/%Y')} "
+        f"se agregó correctamente."
+    )
+
 
     return JsonResponse({
         'ok': True,
@@ -183,7 +191,7 @@ def crear_tarea(request, playlist_id):
 def agregar_cancion(request, playlist_id):
     if request.method != "POST":
         messages.error(request, "Método no permitido")
-        return JsonResponse({"ok": False, "error": "Método no permitido"})
+        return JsonResponse({"ok": False, "error": "Método no permitido"}, status=405)
 
     try:
         url = request.POST.get("url")
@@ -192,7 +200,7 @@ def agregar_cancion(request, playlist_id):
 
         if not url or not posicion or not fecha:
             messages.error(request, "Datos incompletos para agregar canción")
-            return JsonResponse({"ok": False, "error": "Datos incompletos"})
+            return JsonResponse({"ok": False, "error": "Datos incompletos"}, status=400)
 
         # 1. Extraer track ID
         track_id = None
@@ -204,54 +212,51 @@ def agregar_cancion(request, playlist_id):
 
         if not track_id:
             messages.error(request, "La URL de la canción no es válida")
-            return JsonResponse({"ok": False, "error": "URL inválida"})
+            return JsonResponse({"ok": False, "error": "URL inválida"}, status=400)
 
-        # 2. Obtener credenciales
-        cred = CredencialesSpotify.objects.first()
-        if not cred:
-            messages.error(request, "No hay credenciales de Spotify configuradas")
-            return JsonResponse({"ok": False, "error": "No hay credenciales de Spotify"})
+        # 2. Credenciales
+        cred = check_credentials(request)
+        if isinstance(cred, HttpResponseRedirect):
+            return JsonResponse({
+                "ok": False,
+                "requires_auth": True,
+                "auth_url": build_authorize_url(state=f"editar_playlist:{playlist_id}")
+            }, status=401)
 
-        # Verificar rate limit
-        if cred.rate_limit_until and cred.rate_limit_until > timezone.now():
-            seconds_remaining = int((cred.rate_limit_until - timezone.now()).total_seconds())
-            messages.warning(request, f"Rate limit activo. Espera {seconds_remaining} segundos.")
+
+        # 3. Rate limit
+        seconds_remaining = check_rate_limit(request, cred)
+        if seconds_remaining:
             return JsonResponse({
                 "ok": False,
                 "error": f"Rate limit activo. Espera {seconds_remaining} segundos."
-            })
+            }, status=429)
 
+        # 4. Token
         token = get_spotify_token()
         headers = {"Authorization": f"Bearer {token}"}
 
-        # 3. Llamar a la API de Spotify
+        # 5. Llamada a la API
         resp = requests.get(
             f"https://api.spotify.com/v1/tracks/{track_id}",
             headers=headers,
             timeout=12
         )
-
-        if resp.status_code == 429:
-            retry_after = int(resp.headers.get("Retry-After", 30))
-            cred.rate_limit_until = timezone.now() + timedelta(seconds=retry_after)
-            cred.save()
-            messages.warning(request, f"Rate limit. Intenta en {retry_after} segundos.")
+        retry_after = handle_429(resp, cred, request)
+        if retry_after:
             return JsonResponse({
                 "ok": False,
-                "error": f"Rate limit. Intenta en {retry_after} segundos."
-            })
+                "error": f"Muchas peticiones a la API de Spotify. Espera {retry_after} segundos antes de volver a intentar."
+            }, status=429)
 
         if resp.status_code != 200:
             messages.error(request, "La API de Spotify no devolvió datos")
-            return JsonResponse({"ok": False, "error": "La API no devolvió datos"})
+            return JsonResponse({"ok": False, "error": "La API no devolvió datos"}, status=500)
 
         data = resp.json()
 
-        # 4. Crear canción si no existe
-        cover_url = None
-        if data["album"].get("images"):
-            cover_url = data["album"]["images"][0]["url"]
-
+        # 6. Crear canción si no existe
+        cover_url = data["album"]["images"][0]["url"] if data["album"].get("images") else None
         cancion_obj, _ = Cancion.objects.get_or_create(
             id_spotify=track_id,
             defaults={
@@ -264,41 +269,51 @@ def agregar_cancion(request, playlist_id):
             }
         )
 
-        # 5. Crear relación en estado pendiente
+        # 7. Crear relación en estado pendiente
         playlist = Playlist.objects.get(id_playlist=playlist_id)
-        agregado_por=request.user.username
-
         relacion = PlaylistCancion.objects.create(
             playlist=playlist,
             cancion=cancion_obj,
-            posicion=None,                  # 👈 posición inválida hasta que se ejecute la tarea
+            posicion=None,
             fecha_agregado=timezone.now(),
-            agregado_por=agregado_por,      # 👈 correcto según API (si disponible)
-            estado="pendiente"              # 👈 nuevo campo
+            agregado_por=request.user.username,
+            estado="pendiente"
         )
 
-        # 6. Crear tarea automática
-        Tarea.objects.create(
+        # 8. Crear tarea automática
+
+        try:
+            fecha_ejecucion = datetime.strptime(fecha, "%Y-%m-%d")
+            fecha_ejecucion = timezone.make_aware(fecha_ejecucion, timezone.get_current_timezone())
+        except ValueError:
+            return JsonResponse({"ok": False, "error": "Fecha inválida"}, status=400)
+
+        tarea = Tarea.objects.create(
             relacion=relacion,
             tipo="Agregar",
-            posicion=posicion,              # 👈 aquí sí guardamos la posición solicitada
+            posicion=int(posicion),  # 👈 aseguramos que sea entero
             estado="Pendiente",
-            fecha_ejecucion=fecha,
+            fecha_ejecucion=fecha_ejecucion,  # 👈 ahora es datetime
             usuario=request.user,
             url_cancion=url
         )
 
-        # 👉 mensaje de éxito
         messages.success(request, f"Canción '{cancion_obj.nombre}' registrada como pendiente en la playlist")
+        messages.success(
+            request,
+            f"La tarea {tarea.tipo} de '{relacion.cancion.nombre}' "
+            f"en la playlist '{relacion.playlist.nombre}' "
+            f"para el {tarea.fecha_ejecucion.strftime('%d/%m/%Y')} "
+            f"se agregó correctamente."
+        )
+  
 
-        return JsonResponse({
-            "ok": True,
-            "relacion_id": relacion.id_relacion
-        })
+        return JsonResponse({"ok": True, "relacion_id": relacion.id_relacion})
 
     except Exception as e:
         messages.error(request, f"Error al agregar canción: {str(e)}")
-        return JsonResponse({"ok": False, "error": str(e)})
+        return JsonResponse({"ok": False, "error": str(e)}, status=500)
+
 
 
 
@@ -361,9 +376,20 @@ def eliminar_tarea(request, playlist_id, tarea_id):
         return JsonResponse({"ok": False, "error": "Método no permitido"}, status=405)
 
     tarea = get_object_or_404(Tarea, id_tarea=tarea_id, relacion__playlist_id=playlist_id)
+
+    # Guardamos info antes de eliminar
+    tipo = tarea.tipo
+    cancion = tarea.relacion.cancion.nombre
+    playlist_nombre = tarea.relacion.playlist.nombre
+    fecha = tarea.fecha_ejecucion.strftime('%d/%m/%Y') if tarea.fecha_ejecucion else "sin fecha"
+
     tarea.delete()
 
-    # 👉 mensaje en la barra superior
-    messages.success(request, "Tarea eliminada correctamente")
+    # 👉 mensaje más específico
+    messages.success(
+        request,
+        f"La tarea {tipo} de '{cancion}' en la playlist '{playlist_nombre}' "
+        f"para el {fecha} fue eliminada correctamente."
+    )
 
     return JsonResponse({"ok": True})

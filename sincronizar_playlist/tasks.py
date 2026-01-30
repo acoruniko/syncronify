@@ -1,16 +1,16 @@
 from celery import shared_task
 from django.utils import timezone
-from playlists.models import Playlist, Cancion, PlaylistCancion, Tarea
+from playlists.models import Tarea
 from conexion.models import CredencialesSpotify
-from conexion.services import get_spotify_token
-from .services import execute_tarea
 from django.db.models import F
+from .services import execute_tarea
 
 # 👉 Ejecuta una tarea individual
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)  # 5 min entre reintentos
 def process_tarea(self, tarea_id):
     try:
-        return execute_tarea(tarea_id)
+        # ✅ Llamamos con source="celery" para que se guarden logs
+        return execute_tarea(tarea_id, source="celery")
 
     except Exception as exc:
         # 👉 Registrar el intento y el error en la BD
@@ -22,7 +22,6 @@ def process_tarea(self, tarea_id):
 
         # 👉 Luego dejar que Celery reprograme el reintento
         raise self.retry(exc=exc)
-
 
 
 # 👉 Revisa las tareas pendientes del día y las encola

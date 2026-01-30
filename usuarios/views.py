@@ -3,6 +3,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from .forms import LoginForm 
 from .models import Sesion
+from logs.models import LogEvento 
+from django.utils.timezone import now
 
 def login_view(request):
     if request.user.is_authenticated: 
@@ -31,6 +33,14 @@ def login_view(request):
                     token_sesion=request.session.session_key,
                     estado="activo"
                 )
+                # 👉 registrar en log interno (no mostrar al usuario) 
+                LogEvento.objects.create( 
+                    fecha=now(), 
+                    nivel="INFO", 
+                    usuario=user.username, 
+                    modulo="usuarios", 
+                    mensaje=f"Usuario {user.username} inició sesión correctamente" 
+                )
 
                 return redirect("lista_playlist_home")
             else:
@@ -45,5 +55,16 @@ def login_view(request):
 
 
 def logout_view(request):
+    usuario = request.user.username if request.user.is_authenticated else "Anon"
     logout(request)
+
+    LogEvento.objects.create(
+        fecha=now(),
+        nivel="INFO",
+        usuario=usuario,
+        modulo="usuarios",
+        mensaje=f"Usuario {usuario} cerró sesión"
+    )
+
     return redirect("login")
+

@@ -3,52 +3,45 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from datetime import timedelta
+from conexion.auth import build_authorize_url
 from conexion.models import CredencialesSpotify
-from conexion.services import get_spotify_token
+from conexion.services import get_spotify_token, check_credentials, check_rate_limit, handle_429
 from playlists.models import Playlist, Cancion, PlaylistCancion
+from django.http import HttpResponseRedirect
 import requests
-
 
 @login_required
 def importar_playlist_confirmar(request, playlist_id):
     try:
-        cred = CredencialesSpotify.objects.first()
-        if not cred:
-            return redirect("login_spotify")
+        # 1. Credenciales
+        cred = check_credentials(request)
+        if isinstance(cred, HttpResponseRedirect):
+            return redirect(build_authorize_url(state="importar_playlists"))
 
-        # ⚠️ Verificar rate limit antes de importar
-        if cred.rate_limit_until and cred.rate_limit_until > timezone.now():
-            seconds_remaining = int((cred.rate_limit_until - timezone.now()).total_seconds())
-            messages.error(
-                request,
-                f"Muchas peticiones a la API de Spotify. Espera {seconds_remaining} segundos antes de volver a intentar."
-            )
+
+        # 2. Rate limit
+        seconds_remaining = check_rate_limit(request, cred)
+        if seconds_remaining:
             return redirect("lista_playlist_home")
 
+        # 3. Token
         token = get_spotify_token()
         current_page = request.GET.get("page", 1)
 
-        # 1. Verificar si la playlist ya existe
+        # 4. Verificar si la playlist ya existe
         if Playlist.objects.filter(id_spotify=playlist_id).exists():
             messages.warning(request, f"La playlist ya fue importada previamente.")
             return redirect(f"/importar/playlists/?page={current_page}")
 
-        # 2. Obtener canciones de la playlist
+        # 5. Obtener canciones
         canciones_guardadas = []
         url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks?limit=100&offset=0"
         headers = {"Authorization": f"Bearer {token}"}
 
         while url:
             resp = requests.get(url, headers=headers, timeout=12)
-
-            if resp.status_code == 429:
-                retry_after = int(resp.headers.get("Retry-After", 30))
-                cred.rate_limit_until = timezone.now() + timedelta(seconds=retry_after)
-                cred.save()
-                messages.error(
-                    request,
-                    f"Muchas peticiones a la API de Spotify. Espera {retry_after} segundos antes de volver a intentar."
-                )
+            retry_after = handle_429(resp, cred, request)
+            if retry_after:
                 return redirect("lista_playlist_home")
 
             resp.raise_for_status()
@@ -59,11 +52,7 @@ def importar_playlist_confirmar(request, playlist_id):
                 if not track:
                     continue
 
-                # ✅ Obtener cover de la canción (del álbum)
-                cover_url = None
-                if track["album"].get("images"):
-                    cover_url = track["album"]["images"][0]["url"]
-
+                cover_url = track["album"]["images"][0]["url"] if track["album"].get("images") else None
                 cancion_obj, _ = Cancion.objects.get_or_create(
                     id_spotify=track["id"],
                     defaults={
@@ -79,29 +68,20 @@ def importar_playlist_confirmar(request, playlist_id):
 
             url = data.get("next")
 
-        # 3. Guardar playlist
+        # 6. Guardar playlist
         playlist_resp = requests.get(
             f"https://api.spotify.com/v1/playlists/{playlist_id}",
             headers=headers,
             timeout=12
         )
-
-        if playlist_resp.status_code == 429:
-            retry_after = int(playlist_resp.headers.get("Retry-After", 30))
-            cred.rate_limit_until = timezone.now() + timedelta(seconds=retry_after)
-            cred.save()
-            messages.error(
-                request,
-                f"Muchas peticiones a la API de Spotify. Espera {retry_after} segundos antes de volver a intentar."
-            )
+        retry_after = handle_429(playlist_resp, cred, request)
+        if retry_after:
             return redirect("lista_playlist_home")
 
         playlist_resp.raise_for_status()
         playlist_data = playlist_resp.json()
 
-        descripcion = playlist_data.get("description", "")
-        if descripcion and len(descripcion) > 1000:
-            descripcion = descripcion[:1000]
+        descripcion = playlist_data.get("description", "")[:1000] if playlist_data.get("description") else ""
 
         playlist_obj = Playlist.objects.create(
             id_spotify=playlist_data["id"],
@@ -113,19 +93,18 @@ def importar_playlist_confirmar(request, playlist_id):
             usuario_importo=request.user
         )
 
-        # 4. Guardar relaciones playlist ↔ canciones
+        # 7. Guardar relaciones
         for idx, (cancion_obj, item) in enumerate(canciones_guardadas, start=1):
             PlaylistCancion.objects.create(
                 playlist=playlist_obj,
                 cancion=cancion_obj,
-                posicion=idx,  # ✅ posición real según el orden del arreglo
+                posicion=idx,
                 fecha_agregado=item.get("added_at"),
                 agregado_por=item["added_by"]["id"] if item.get("added_by") else None,
                 estado="activo"
             )
 
-
-        # 5. Mensaje de éxito
+        # 8. Mensaje de éxito
         messages.success(request, f"La playlist '{playlist_obj.nombre}' fue importada con éxito.")
         return redirect(f"/importar/playlists/?page={current_page}")
 
@@ -133,26 +112,16 @@ def importar_playlist_confirmar(request, playlist_id):
         messages.error(request, f"Error al importar la playlist: {str(e)}")
         current_page = request.GET.get("page", 1)
         return redirect(f"/importar/playlists/?page={current_page}")
-    
-    
+
 @login_required
 def importar_playlists(request):
-    cred = CredencialesSpotify.objects.first()
-    if not cred:
-        return redirect("login_spotify")
+    cred = check_credentials(request)
+    if isinstance(cred, HttpResponseRedirect):
+        return redirect(build_authorize_url(state="importar_playlists"))
 
-    # Inicializar variables
-    rate_limited = False
-    seconds_remaining = 0
 
-    # ⚠️ Revisar rate limit real antes de listar
-    if cred.rate_limit_until and cred.rate_limit_until > timezone.now():
-        rate_limited = True
-        seconds_remaining = int((cred.rate_limit_until - timezone.now()).total_seconds())
-        messages.error(
-            request,
-            f"Muchas peticiones a la API de Spotify. Espera {seconds_remaining} segundos antes de volver a intentar."
-        )
+    seconds_remaining = check_rate_limit(request, cred)
+    if seconds_remaining:
         return redirect("lista_playlist_home")
 
     try:
@@ -166,16 +135,8 @@ def importar_playlists(request):
             headers={"Authorization": f"Bearer {token}"},
             timeout=12
         )
-
-        if resp.status_code == 429:
-            retry_after = int(resp.headers.get("Retry-After", 30))
-            cred.rate_limit_until = timezone.now() + timedelta(seconds=retry_after)
-            cred.save()
-            rate_limited = True
-            messages.error(
-                request,
-                f"Muchas peticiones a la API de Spotify. Espera {retry_after} segundos antes de volver a intentar."
-            )
+        retry_after = handle_429(resp, cred, request)
+        if retry_after:
             return redirect("lista_playlist_home")
 
         resp.raise_for_status()
@@ -186,8 +147,8 @@ def importar_playlists(request):
             "playlists": playlists,
             "page_number": page_number,
             "has_next": data.get("next") is not None,
-            "rate_limited": rate_limited,
-            "seconds_remaining": seconds_remaining,
+            "rate_limited": False,
+            "seconds_remaining": 0,
         })
 
     except Exception as e:

@@ -554,15 +554,20 @@ async function guardarAgregarCancion() {
   if (!data.ok) {
     await refrescarMensajes();
 
-    // cerramos modal en errores fuertes
+    if (data.requires_auth) {
+      window.location.href = data.auth_url; // redirige al login de Spotify
+      return;
+    }
+
     if (data.error && data.error.toLowerCase().includes("rate limit")) {
       cerrarModalTarea();
       modoAgregarCancion = false;
-      location.reload(); // fuerza el popup y bloqueo del botón
+      location.reload();
     }
-    
+
     return;
   }
+
 
   // ✅ flujo normal
   cerrarModalTarea();

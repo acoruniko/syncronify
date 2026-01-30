@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'lista_playlist',
     'editar_playlist',
     "sincronizar_playlist",
+    'logs',
     'playlists.apps.PlaylistsConfig',
     'usuarios.apps.UsuariosConfig',
 ]
@@ -75,6 +76,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'syncronify.urls'
+
+MESSAGE_STORAGE = "logs.storage.LogStorage"
 
 TEMPLATES = [
     {

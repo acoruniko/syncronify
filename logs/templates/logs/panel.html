@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Panel de Logs{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'logs/css/logs.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="sincronizar-container">
+  <div class="sincronizar-layout">
+
+    <!-- Columna izquierda: lista de logs -->
+    <div class="tareas-section">
+      <div class="playlist-header">
+        <h1>Panel de Logs</h1>
+      </div>
+
+      <!-- Header sticky con columnas -->
+      <div class="tasks-header sticky">
+        <span class="col-nivel" onclick="ordenar('nivel')">Nivel</span>
+        <span class="col-usuario" onclick="ordenar('usuario')">Usuario</span>
+        <span class="col-fecha" onclick="ordenar('fecha')">Fecha</span>
+        <span class="col-modulo" onclick="ordenar('modulo')">Módulo</span>
+        <span class="col-mensaje">Mensaje</span>
+      </div>
+
+      <!-- Lista de logs -->
+      <div id="lista-logs" class="tasks-list scroll-container">
+        {% for log in logs %}
+          <div class="task-row"
+              data-id="{{ log.id }}"
+              data-modulo="{{ log.modulo }}"
+              data-usuario="{{ log.usuario }}"
+              data-nivel="{{ log.nivel }}">
+            <span class="col-nivel">{{ log.nivel }}</span>
+            <span class="col-usuario">{{ log.usuario }}</span>
+            <span class="col-fecha">{{ log.fecha }}</span>
+            <span class="col-modulo">{{ log.modulo }}</span>
+            <span class="col-mensaje">{{ log.mensaje }}</span>
+          </div>
+
+        {% empty %}
+          <p class="empty">No hay registros disponibles para este mes.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Columna derecha: selector de mes + botón atrás -->
+    <div class="action-panel">
+      <div class="detalle-box selector-mes">
+        <h3>Seleccionar Mes</h3>
+        <form method="get" action="{% url 'logs_home' %}">
+          <div class="modal-row">
+            <input type="month" id="sel-month" name="month_year"
+                   value="{{ current_year }}-{{ current_month|stringformat:'02d' }}"
+                   onchange="this.form.submit()">
+          </div>
+        </form>
+      </div>
+
+      <div class="detalle-box volver">
+        <button class="action-btn" onclick="volverAtras()">Atrás</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function volverAtras() {
+    window.location.href = "{% url 'lista_playlist_home' %}";
+  }
+  
+function ordenar(campo) {
+  const params = new URLSearchParams(window.location.search);
+  const currentOrder = params.get("order_by");
+  const currentDir = params.get("direction") || "desc";
+  let rotation = parseInt(params.get("rotation") || "0");
+
+  if (campo === "nivel") {
+    // 👉 cada click incrementa la rotación
+    rotation = (rotation + 1) % 3;
+    params.set("order_by", "nivel");
+    params.set("rotation", rotation);
+  } else {
+    if (campo === currentOrder) {
+      params.set("direction", currentDir === "asc" ? "desc" : "asc");
+    } else {
+      params.set("order_by", campo);
+      params.set("direction", "asc");
+    }
+  }
+
+  window.location.search = params.toString();
+}
+</script>
+{% endblock %}

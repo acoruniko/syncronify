@@ -173,10 +173,23 @@
   vertical-align: middle;
 }
 .col-title {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
+  color: #fff;
 }
+
+.col-title-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;       /* máximo 2 líneas */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 2.8em;           /* altura aprox. 2 líneas */
+  word-break: break-word;
+  font-size: 14px;
+}
+
 .col-album {
   font-size: 13px;
   color: #b3b3b3;
