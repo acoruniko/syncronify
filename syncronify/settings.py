@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     "django_extensions",
+    'django_celery_beat',
     'conexion',
     'importar',
     'lista_playlist',
@@ -160,12 +161,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_BEAT_SCHEDULE = {
-    'process_due_tasks': {
-        'task': 'sincronizar_playlist.tasks.process_due_tasks',
-        'schedule': crontab(minute='*/5'),
-    },
-}
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 
 # URL de login por defecto (usada por @login_required)
