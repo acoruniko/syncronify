@@ -30,7 +30,6 @@ def login_view(request):
                 # 👉 registrar la nueva sesión
                 Sesion.objects.update_or_create(
                     id_usuario=user.id_usuario,
-                    token_sesion=request.session.session_key,
                     estado="activo"
                 )
                 # 👉 registrar en log interno (no mostrar al usuario) 
