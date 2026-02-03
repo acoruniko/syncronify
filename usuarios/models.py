@@ -22,7 +22,7 @@ class UsuarioManager(BaseUserManager):
 class Sesion(models.Model):
     id_sesion = models.AutoField(primary_key=True)
     id_usuario = models.IntegerField()  # FK hacia usuarios.id_usuario
-    token_sesion = models.CharField(max_length=255, unique=True)
+    token_sesion = models.CharField(max_length=255)
     fecha_inicio = models.DateTimeField(default=timezone.now)
     fecha_cierre = models.DateTimeField(null=True, blank=True)
     estado = models.CharField(max_length=20, default="activo")
