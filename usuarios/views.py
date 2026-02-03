@@ -28,7 +28,7 @@ def login_view(request):
                 Sesion.objects.filter(id_usuario=user.id_usuario, estado="activo").update(estado="cerrado")
 
                 # 👉 registrar la nueva sesión
-                Sesion.objects.create(
+                Sesion.objects.update_or_create(
                     id_usuario=user.id_usuario,
                     token_sesion=request.session.session_key,
                     estado="activo"
