@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "django_extensions",
     'django_celery_beat',
     'conexion',
+    'configuracion',
     'importar',
     'lista_playlist',
     'editar_playlist',
@@ -146,11 +147,10 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-ve' # O 'en-us', pero 'es-ve' pondrá los meses en español
 
-TIME_ZONE = 'America/Caracas' 
+TIME_ZONE = 'America/Caracas'
 USE_TZ = True
-
 USE_I18N = True
 
 
@@ -160,8 +160,14 @@ USE_I18N = True
 
 STATIC_URL = '/static/'
 
+# --- Celery Settings ---
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' # Recomendado añadirlo
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# Crucial para que el contador funcione:
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True # Deja esto en True, Celery convertirá internamente
 
 
 # URL de login por defecto (usada por @login_required)

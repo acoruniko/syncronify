@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'configuracion/css/configuracion.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="config-container">
+    
+    <div class="playlist-header" style="width: 1500px;">
+        <h1>Configuración del Sistema</h1>
+    </div>
+
+    <div class="super-bloque">
+        <div class="super-bloque-title">Gestión de Usuarios</div>
+        
+        <div class="usuarios-layout">
+            <div class="user-list-container scroll-container">
+                {% for u in usuarios %}
+                <div class="user-row" onclick="seleccionarUsuario(this, '{{ u.username }}', '{{ u.nombre_completo }}', '{{ u.is_active|yesno:'true,false' }}', '{{ u.rol }}')">
+                    <span class="col-usuario">{{ u.nombre_completo }}</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="user-detail-panel" id="panel-detalle-usuario" style="display: none;">
+                <div class="inner-box user-info-header">
+                    <input type="hidden" id="display-nombre" value="">
+                    <p class="username-text">Username: <span id="display-username">—</span></p>
+                    
+                    <div class="status-container">
+                        <span class="status-label">Estado de cuenta:</span>
+                        <label class="switch">
+                            <input type="checkbox" id="check-activo" onchange="autoGuardar()">
+                            <span class="slider"></span>
+                        </label>
+                        <span id="label-estado" class="status-tag">Inactivo</span>
+                    </div>
+                </div>
+
+                <div class="inner-box roles-config-box">
+                    <h4 style="margin-bottom: 10px;">Roles del Usuario</h4>
+                    <div class="roles-list-container" id="lista-roles-disponibles">
+                        <div class="role-tag" onclick="toggleRol(this, 'admin')">Administrador</div>
+                        <div class="role-tag" onclick="toggleRol(this, 'usuario')">Usuario Estándar</div>
+                        </div>
+                </div>
+
+                <div class="actions-container">
+                    <button id="btn-eliminar-usuario" class="action-btn">
+                        Eliminar usuario
+                    </button>
+                </div>
+            </div>
+
+            <div id="placeholder-detalle" class="detail-placeholder">
+                Seleccione un usuario de la lista para ver detalles
+            </div>
+        </div>
+    </div>
+
+    <div class="super-bloque">
+        <div class="super-bloque-title">Tareas Programadas</div>
+        
+        <div class="tareas-wrapper">
+            <p class="timer-info">
+                Próxima ejecución de tareas programadas (estimado): 
+                <strong id="countdown-display" data-seconds="{{ segundos_restantes|default:0 }}">
+                    {{ tiempo_restante|default:"0h 00m 00s" }}
+                </strong>
+            </p>
+
+            <form method="POST" action="{% url 'configuracion_home' %}" class="config-form-inline">
+                {% csrf_token %}
+                
+                <label>Intervalo de sincronización:</label>
+                
+                <div class="input-group">
+                    <input type="number" 
+                        name="intervalo_horas" 
+                        value="{{ intervalo_actual }}" 
+                        min="1" 
+                        class="input-intervalo">
+                    <span class="unit-label">h.</span>
+                </div>
+
+                <button type="submit" class="action-btn">
+                    Actualizar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="btn-atras-container">
+        <button class="action-btn primary" onclick="window.location.href='{% url 'lista_playlist_home' %}'" style="width: 200px;">
+            Atras
+        </button>
+    </div>
+    
+
+</div>
+
+<script>
+    let usuarioSeleccionado = null;
+    let rolSeleccionado = "";
+    let rolesActuales = [];
+    let filaUsuarioSeleccionada = null;
+
+    function seleccionarUsuario(elemento, username, nombre, activo, rol) {
+        filaUsuarioSeleccionada = elemento;
+
+        // Marcado visual
+        document.querySelectorAll('.user-row').forEach(r => r.classList.remove('selected'));
+        elemento.classList.add('selected');
+
+        // Mostrar panel y ocultar placeholder
+        document.getElementById('panel-detalle-usuario').style.display = 'flex';
+        document.getElementById('placeholder-detalle').style.display = 'none';
+
+        // Llenar datos
+        document.getElementById('display-nombre').innerText = nombre;
+        document.getElementById('display-username').innerText = username;
+        
+        rolesActuales = rol ? rol.split(',').map(r => r.trim()) : [];
+        
+        actualizarInterfazRoles();
+
+        usuarioSeleccionado = username;
+        rolSeleccionado = rol; 
+
+        const checkActivo = document.getElementById('check-activo');
+        const userLogueado = "{{ request.user.username }}";
+
+        // Si soy yo mismo, deshabilito el switch para evitar el suicidio
+        if (username === userLogueado) {
+            checkActivo.disabled = true;
+            // Opcional: añadir un title para explicar por qué está deshabilitado
+            checkActivo.parentElement.title = "No puedes desactivar tu propia cuenta de administrador";
+        } else {
+            checkActivo.disabled = false;
+            checkActivo.parentElement.title = "";
+        }
+
+        const isActivo = (activo === 'true');
+        document.getElementById('check-activo').checked = isActivo;
+        actualizarEtiquetaEstado(isActivo);
+   
+        // Convertimos el string "admin,usuario" en un array real
+        rolesActuales = rol ? rol.split(',').map(r => r.trim()) : [];
+
+        // Actualizamos visualmente las etiquetas de los roles
+        document.querySelectorAll('.role-tag').forEach(tag => {
+            const rolNombre = tag.innerText.toLowerCase().includes('admin') ? 'admin' : 
+                            tag.innerText.toLowerCase().includes('estándar') ? 'usuario' : 'editor';
+            
+            // Esta lógica depende de cómo nombres tus roles, lo ideal es usar un data-attribute:
+            // <div class="role-tag" data-role="admin" ...>
+            const roleKey = tag.getAttribute('data-role') || rolNombre; 
+
+            if (rolesActuales.includes(roleKey)) {
+                tag.classList.add('active');
+            } else {
+                tag.classList.remove('active');
+            }
+        });
+    }
+
+    function actualizarInterfazRoles() {
+        document.querySelectorAll('.role-tag').forEach(tag => {
+            const roleKey = tag.getAttribute('data-role'); 
+            if (rolesActuales.includes(roleKey)) {
+                tag.classList.add('active');
+            } else {
+                tag.classList.remove('active');
+            }
+        });
+    }
+
+    function actualizarEtiquetaEstado(activo) {
+        const label = document.getElementById('label-estado');
+        if (activo) {
+            label.innerText = "Activo";
+            label.className = "status-tag activo";
+        } else {
+            label.innerText = "Inactivo";
+            label.className = "status-tag inactivo";
+        }
+    }
+
+    function enviarActualizacion(payload) {
+        if (!usuarioSeleccionado) return;
+        payload.username = usuarioSeleccionado;
+
+        fetch("{% url 'actualizar_usuario_ajax' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success || data.status === 'ok') {
+                
+                // --- RECUPERAMOS LA LÓGICA DEL TOPBAR ---
+                const topbarCenter = document.querySelector('.topbar-center');
+                if (topbarCenter) {
+                    // Inyectamos el formato exacto de mensajes de tu sistema
+                    topbarCenter.innerHTML = `
+                        <div class="messages-bar">
+                            <div class="message ${data.tipo}">${data.mensaje}</div>
+                        </div>
+                    `;
+                    
+                }
+
+                // --- ACTUALIZACIÓN DE LA FILA (Para evitar el comportamiento raro) ---
+                if (filaUsuarioSeleccionada) {
+                    const nombreActual = document.getElementById('display-nombre').innerText;
+                    
+                    // Actualizamos el onclick con los datos frescos del servidor
+                    filaUsuarioSeleccionada.setAttribute('onclick', 
+                        `seleccionarUsuario(this, '${usuarioSeleccionado}', '${nombreActual}', '${data.nuevo_activo}', '${data.nuevo_rol}')`
+                    );
+                    
+                    // Actualizamos la variable global de rol para las confirmaciones de borrado
+                    rolSeleccionado = data.nuevo_rol;
+                }
+
+            } else {
+                // Si el backend responde error (ej: intento de quitarse el admin)
+                alert("Atención: " + (data.mensaje || data.error));
+                // Opcional: recargar para resetear los botones visuales
+                // location.reload(); 
+            }
+        })
+        .catch(error => {
+            console.error("Error crítico en la comunicación:", error);
+        });
+    }
+
+    // Para el Switch de Activo
+    function autoGuardar() {
+        const activo = document.getElementById('check-activo').checked;
+        actualizarEtiquetaEstado(activo);
+        enviarActualizacion({ activo: activo });
+    }
+
+    // Para los Roles
+    function toggleRol(elemento, rolNombre) {
+        const userLogueado = "{{ request.user.username }}";
+        if (usuarioSeleccionado === userLogueado && rolNombre === 'admin' && rolesActuales.includes('admin')) {
+            alert("No puedes quitarte el rol de Administrador a ti mismo.");
+            return;
+        }
+
+        if (rolesActuales.includes(rolNombre)) {
+            rolesActuales = rolesActuales.filter(r => r !== rolNombre);
+            elemento.classList.remove('active');
+        } else {
+            rolesActuales.push(rolNombre);
+            elemento.classList.add('active');
+        }
+
+        // Enviamos el string limpio (todos los seleccionados)
+        enviarActualizacion({ rol: rolesActuales.join(',') });
+    }
+
+
+    document.getElementById('btn-eliminar-usuario').addEventListener('click', function() {
+        if (!usuarioSeleccionado) return;
+
+        // 1. Seguridad: No suicidarse (Validación contra el usuario de la sesión de Django)
+        if (usuarioSeleccionado === "{{ request.user.username }}") {
+            alert("Operación cancelada: No puedes eliminar tu propia cuenta de administrador.");
+            return;
+        }
+
+        // 2. Primera confirmación (General)
+        const confirmar1 = confirm(`¿Está seguro de eliminar al usuario "${usuarioSeleccionado}"?`);
+        if (!confirmar1) return;
+
+        // 3. Segunda confirmación (Lógica de Arquitectura: busca 'admin' en la lista de roles)
+        // rolSeleccionado puede ser "admin", "usuario" o "admin,usuario"
+        const listaRolesJS = rolSeleccionado ? rolSeleccionado.split(',').map(r => r.trim()) : [];
+        
+        if (listaRolesJS.includes("admin")) {
+            const confirmar2 = confirm(`El usuario "${usuarioSeleccionado}" tiene privilegios de ADMINISTRADOR.\nEsta acción es irreversible y afectará la gestión del sistema.\n\n¿Desea proceder con la eliminación definitiva?`);
+            if (!confirmar2) return;
+        }
+
+        // 4. Petición al backend con manejo de respuesta profesional
+        fetch("{% url 'eliminar_usuario_ajax' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': "{{ csrf_token }}"
+            },
+            body: JSON.stringify({ username: usuarioSeleccionado })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Error en la respuesta del servidor');
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'ok') {
+                // Recargamos para que Django muestre el success message (con la lógica de basura o lógico)
+                window.location.reload(); 
+            } else {
+                alert("No se pudo eliminar: " + data.mensaje);
+            }
+        })
+        .catch(error => {
+            console.error("Error crítico en eliminación:", error);
+            alert("Error de conexión: No se pudo procesar la solicitud.");
+        });
+    });
+
+    function sincronizarMetronomo() {
+        const display = document.getElementById('countdown-display');
+        if (!display) return;
+
+        // Leemos el valor inicial enviado por el socio (Django)
+        let segundos = parseInt(display.getAttribute('data-seconds'), 10);
+
+        const tick = setInterval(() => {
+            if (segundos <= 0) {
+                // El ciclo terminó, el metrónomo de Celery debería disparar
+                display.innerText = "Actualizando...";
+                clearInterval(tick);
+                // Damos 3 segundos de gracia para que la tarea termine y recargamos
+                setTimeout(() => window.location.reload(), 3000);
+                return;
+            }
+
+            segundos--;
+            
+            // Formateo visual H:M:S
+            const h = Math.floor(segundos / 3600);
+            const m = Math.floor((segundos % 3600) / 60);
+            const s = segundos % 60;
+
+            // Visualización limpia (0h 05m 09s)
+            display.innerText = `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+        }, 1000);
+    }
+
+    document.addEventListener('DOMContentLoaded', sincronizarMetronomo);
+</script>
+{% endblock %}

@@ -29,4 +29,5 @@ urlpatterns = [
     path("spotify/callback", spotify_callback, name="spotify_callback"),
     path("conexion/", include("conexion.urls")),
     path("importar/", include("importar.urls")), 
+    path('configuracion/', include('configuracion.urls')),
     ]

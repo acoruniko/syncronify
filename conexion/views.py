@@ -1,6 +1,8 @@
 # conexion/views.py
 from django.shortcuts import redirect
 from django.contrib import messages
+
+from django.http import HttpResponse
 from .auth import build_authorize_url, exchange_code_for_tokens
 
 def login_spotify(request):
@@ -40,4 +42,11 @@ def spotify_callback(request):
     except Exception as e:
         messages.error(request, f"No se pudo conectar con Spotify: {str(e)}")
         return redirect("lista_playlist_home")
+
+
+def kick_callback(request):
+    code = request.GET.get("code")
+    error = request.GET.get("error")
+    print("Kick callback recibido:", code, error)  # 👈 imprime en consola
+    return HttpResponse(f"Kick code: {code}, error: {error}")
 

@@ -139,3 +139,35 @@ body {
   background-color: #d4edda;
   color: #155724;
 }
+
+.user-link {
+    text-decoration: none;
+    color: #ffffff;
+    font-weight: bold;
+    display: inline-block;
+    transition: 0.3s;
+}
+
+/* Forzamos que en cualquier estado (visitado o no) siga siendo blanco */
+.user-link:link, 
+.user-link:visited {
+    color: #ffffff;
+}
+
+/* El único estado que cambia las reglas es el hover */
+.user-link:hover {
+    color: #155724;
+}
+
+.topbar-right {
+    display: flex;
+    align-items: center; /* Esto centra verticalmente todos los elementos */
+    gap: 15px; /* Espaciado uniforme entre elementos */
+}
+
+/* Evita que el enlace del icono tenga el subrayado de los links por defecto */
+.topbar-right a {
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+}

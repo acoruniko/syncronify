@@ -55,10 +55,18 @@
 
         <div class="topbar-right">
             {% if request.user.is_authenticated %}
-                <span class="user">{{ request.user.nombre_completo }}</span>
+                
+                {# USAMOS EL MÉTODO DEL MODELO #}
+                {% if request.user.es_admin %}
+                    <a href="{% url 'configuracion_home' %}" title="Configuración de la aplicación" style=" display: flex; align-items: center;">
+                        <img src="{% static 'img/configuracion-icon.png' %}" alt="Configuración" style="width: 32px; height: 32px; transition: opacity 0.3s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">
+                    </a>
+                {% endif %}
+
+                <a href="{% url 'editar_perfil' %}" class="user-link">
+                    <span class="user">{{ request.user.nombre_completo }}</span>
+                </a>
                 <a href="{% url 'logout' %}" class="logout-btn">Cerrar sesión</a>
-            {% else %}
-                <a href="{% url 'login' %}" class="logout-btn">Iniciar sesión</a>
             {% endif %}
         </div>
     </header>

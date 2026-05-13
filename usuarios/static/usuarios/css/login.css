@@ -21,9 +21,9 @@ body {
   margin-bottom: 20px;
 }
 
-.logo {
+.logo-banner {
   width: 300px;
-  height: 100%;
+  height: auto; /* Dejamos que escale proporcionalmente */
   display: block;
   margin: 0 auto;
 }
@@ -88,4 +88,122 @@ button:hover {
 button:active {
   background-color: #1DB954; /* verde Spotify */
   color: #000; /* texto negro para contraste */
+}
+
+.readonly-input {
+  background-color: #222; 
+  color: #888; 
+  cursor: not-allowed; 
+  border: 1px solid #333;
+}
+  
+/* --- SECCIÓN PERFIL OPTIMIZADA --- */
+
+/* 1. Contenedor principal: Centra horizontalmente y pega arriba */
+.perfil-page-wrapper {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding-top: 20px; /* Controla qué tan cerca del menú superior quieres el banner */
+    position: relative;
+}
+
+/* 2. El ancla: Mantiene el ancho del form para que el absoluto no baile */
+.perfil-form-anchor {
+    position: relative;
+    width: 300px; /* Mismo ancho que tu login-container */
+}
+
+/* 3. Reutilizamos tu login-container original sin el margen de 100px */
+.perfil-form-anchor .login-container {
+    margin: 0; 
+    width: 300px;
+}
+
+/* --- CUADRO DE ROLES ESTILO DETALLE-BOX --- */
+
+.detalle-box.roles-info {
+    position: absolute;
+    left: 340px;      /* Separación del formulario */
+    top: 150px;       /* Alineado con la parte superior del form */
+    background: #181818;
+    color: #fff;
+    padding: 1.2rem;
+    border-radius: 8px;
+    border: 1px solid #2a2a2a;
+    width: 250px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    z-index: 10;
+}
+
+.detalle-box.roles-info h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 16px;
+    color: #1db954; /* Verde Spotify: Igual al ejemplo de Seleccionar Mes */
+    letter-spacing: 1px;
+    border-bottom: 1px solid #2a2a2a;
+    padding-bottom: 8px;
+}
+
+.roles-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.roles-list li {
+    padding: 5px 0;
+    font-size: 14px;
+    color: #b3b3b3; /* Gris claro para no competir */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* El punto verde para cada rol */
+.roles-list li::before {
+    content: "•";
+    color: #1db954;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+/* Contenedor de botones en el formulario */
+.form-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* Ajuste al botón que ya tienes para que compartan la fila */
+.form-actions button, 
+.form-actions .btn-cancel {
+    flex: 1; /* Ambos ocupan el mismo ancho */
+    padding: 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    transition: 0.3s;
+}
+
+/* El botón de Guardar (mantiene tu estilo base) */
+.form-actions button {
+    background-color: #333;
+    color: #fff;
+}
+
+.form-actions button:hover {
+    background-color: #1DB954; /* Verde Spotify al hover para confirmar acción */
+    color: #000;
+}
+
+/* El botón de Cancelar */
+.btn-cancel {
+    background-color: #222;
+    color: #aaa;
+    border: 1px solid #444 !important;
 }

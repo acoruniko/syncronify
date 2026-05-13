@@ -1,0 +1,281 @@
+/* ===========================
+    1. ESTRUCTURA Y CONTENEDORES
+   =========================== */
+.config-container {
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Header con gradiente estilo Syncronify */
+.playlist-header {
+    width: 700px;
+    margin-bottom: 0px;
+
+}
+
+.playlist-header h1 {
+    background: linear-gradient(180deg, #4a4a4a, #121212);
+    padding: 1.5rem;
+    border-radius: 8px;
+    font-size: 40px;
+    font-weight: bold;
+    color: #fff;
+    margin: 0;
+    width: 600px;
+}
+
+.super-bloque {
+    width: 800px;
+    background: #181818;
+    border-radius: 12px;
+    padding: 15px;
+    border: 1px solid #2a2a2a;
+    box-sizing: border-box;
+}
+
+.super-bloque-title {
+    color: #1db954;
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #333;
+    margin-bottom: 20px;
+}
+
+/* ===========================
+    2. GESTIÓN DE USUARIOS (Grid)
+   =========================== */
+.usuarios-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr; /* Lista fija, detalle flexible */
+    gap: 2.5rem;
+    height: 260px;
+}
+
+/* Lista de Usuarios */
+.user-list-container {
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+.user-row {
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 8px;
+    border: 1px solid transparent;
+}
+
+.user-row:hover { background: #282828; }
+
+.user-row.selected {
+    background: #333;
+    border-color: #1db954;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Panel de Detalle */
+.user-detail-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 14px;
+}
+
+.detail-placeholder {
+    height: 150px; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    color: #444;
+}
+
+.inner-box {
+    background: #121212;
+    border-radius: 10px;
+    border: 1px solid #2a2a2a;
+    padding-top: 0px;    /* Reducido para que el contenido empiece más arriba */
+    padding-bottom: 12px;
+    padding-left: 15px;
+    padding-right: 15px;
+    margin-top: 0px;    /* Eliminado el margen superior para un diseño más compacto */
+}
+
+/* ===========================
+    3. ELEMENTOS DE INTERFAZ (UI)
+   =========================== */
+/* Etiquetas de Roles */
+.roles-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 0px;
+    align-items: center;    /* Alineamos las etiquetas al centro */
+}
+
+.role-tag {
+    width: 160px;
+    padding: 6px 12px; 
+    border-radius: 6px;
+    text-align: center;
+    background: #252525;
+    border: 1px solid #333;
+    color: #b3b3b3;
+    cursor: pointer;
+    transition: 0.3s;
+    font-weight: 500;
+    font-size: 14px;       /* Fuente más pequeña y técnica */
+    border-radius: 4px;
+    margin: 0 auto;        /* Los centramos si el contenedor es flex */
+}
+
+
+.role-tag:hover { background: #333; color: #fff; }
+
+.role-tag.active {
+    background: rgba(29, 185, 84, 0.1);
+    color: #1db954;
+    border: 1px solid #1db954;
+}
+
+/* Status y Switch */
+.status-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.status-tag {
+    font-size: 12px;
+    font-weight: bold;
+    padding: 4px 10px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+.status-tag.activo { background: rgba(29, 185, 84, 0.1); color: #1db954; }
+.status-tag.inactivo { background: rgba(255, 77, 77, 0.1); color: #ff4d4d; }
+
+/* Switch Estilo iOS Optimizado */
+.switch { position: relative; width: 44px; height: 22px; cursor: pointer; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: #404040; transition: .3s; border-radius: 20px;
+}
+.slider:before {
+    position: absolute; content: ""; height: 16px; width: 16px;
+    left: 3px; bottom: 3px; background: white; transition: .3s; border-radius: 50%;
+}
+input:checked + .slider { background: #1db954; }
+input:checked + .slider:before { transform: translateX(22px); }
+input:disabled + .slider { opacity: 0.3; cursor: not-allowed; }
+
+/* ===========================
+    4. BOTONES Y ACCIONES
+   =========================== */
+.action-btn {
+    margin-top: 0px;
+    display: block;       
+    margin: 0px auto 0 auto;
+}
+
+.action-btn.primary { background: #1db954; color: #000; }
+.action-btn.primary:hover { transform: scale(1.05); background: #1ed760; }
+
+
+.btn-atras-container { width: 1500px; margin-top: 10px; }
+
+/* Scrollbars */
+.scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-container::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 0;
+}
+.scroll-container:hover::-webkit-scrollbar {
+  background-color: transparent;
+}
+.scroll-container:hover::-webkit-scrollbar-thumb {
+  background-color: #555;
+}
+.scroll-container:hover::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+.scroll-container:hover::-webkit-scrollbar-thumb:hover {
+  background-color: #888;
+}
+
+/* ===========================
+    5. SECCIÓN TAREAS PROGRAMADAS
+   =========================== */
+.tareas-wrapper {
+    padding: 10px 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 0px;
+}
+
+.timer-info {
+    color: #b3b3b3;
+    font-size: 15px;
+    margin-top: 0px;
+}
+
+.timer-info strong {
+    color: #1db954;
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+    margin-left: 5px;
+
+}
+
+.config-form-inline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.config-form-inline label {
+    color: #b3b3b3;
+    font-size: 14px;
+}
+
+.input-intervalo {
+    width: 65px;
+    background: #121212;
+    border: 1px solid #333;
+    color: #fff;
+    padding: 5px 8px;
+    border-radius: 4px;
+    text-align: center;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    outline: none;
+}
+
+.input-intervalo:focus {
+    border-color: #1db954;
+}
+
+.unit-label {
+    color: #555;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+/* Ajuste para que el botón no se centre si está en este form */
+.config-form-inline .action-btn {
+    margin: 0;
+    padding: 6px 20px;
+    font-size: 13px;
+}

@@ -45,9 +45,9 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     nombre_completo = models.CharField(max_length=100)
     username = models.CharField(max_length=50, unique=True)
     password = models.CharField(max_length=255)  
-    rol = models.CharField(max_length=20, default="usuario")
+    rol = models.CharField(max_length=255, default="usuario")
     fecha_creacion = models.DateTimeField()
-    activo = models.BooleanField(default=True)
+    eliminado = models.BooleanField(default=False)
 
     # Campos que Django espera
     is_active = models.BooleanField(default=True)
@@ -59,6 +59,17 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = ["nombre_completo"]
     
     objects = UsuarioManager()
+
+    @property
+    def lista_roles(self):
+        """Devuelve los roles como una lista real: ['admin', 'usuario']"""
+        if not self.rol:
+            return []
+        return [r.strip() for r in self.rol.split(',')]
+
+    def es_admin(self):
+        """Atajo rápido para validaciones de administrador"""
+        return "admin" in self.lista_roles
     
     class Meta:
         db_table = "usuarios"

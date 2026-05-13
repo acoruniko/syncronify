@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Editar Perfil - Syncronify{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'usuarios/css/login.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="perfil-page-wrapper">
+    <div class="perfil-form-anchor">
+        
+        <div class="login-container">
+            <div class="logo-container">
+                <img src="{% static 'usuarios/img/logo_banner.png' %}" alt="Logo Syncronify" class="logo-banner">
+            </div>
+
+            {% if messages %}
+                <div class="messages">
+                    {% for message in messages %}
+                        <p class="{{ message.tags }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form method="POST">
+                {% csrf_token %}
+                <label>Nombre de usuario</label>
+                <input type="text" value="{{ form.username.value|default:request.user.username }}" readonly class="readonly-input">
+
+                <label>Nombre Completo</label>
+                {{ form.nombre_completo }}
+
+                <label>Nueva Contraseña</label>
+                {{ form.password }}
+
+                <label>Confirmar Contraseña</label>
+                {{ form.confirmar_password }}
+
+                <div class="form-actions">
+                    <button type="submit">Guardar</button>
+                    
+                    <button type="button" class="action-btn" onclick="volverAtras()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <aside class="detalle-box roles-info">
+            <h3>Roles Asignados</h3>
+            <ul class="roles-list" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px;">
+                {% for rol in request.user.lista_roles %}
+                    <li class="role-tag active" style="width: fit-content; min-width: 120px; font-size: 14px; padding: 6px 12px;">
+                        {% if rol == 'admin' %}
+                            Administrador
+                        {% elif rol == 'usuario' %}
+                            Usuario Estándar
+                        {% else %}
+                            {{ rol|capfirst }}
+                        {% endif %}
+                    </li>
+                {% empty %}
+                    <li class="placeholder-text">Sin roles asignados</li>
+                {% endfor %}
+            </ul>
+        </aside>
+
+    </div>
+</div>
+
+<script>
+
+    function volverAtras() {
+        window.location.href = "{% url 'lista_playlist_home' %}";
+    }
+
+</script>
+{% endblock %}
