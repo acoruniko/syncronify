@@ -6,6 +6,7 @@ from conexion.models import CredencialesSpotify
 from conexion.services import get_spotify_token
 from playlists.models import Tarea, PlaylistCancion
 from logs.models import LogEvento
+from playlists.services import recalcular_posiciones_tareas_pendientes
 
 def log_evento(nivel, usuario, modulo, mensaje, source="manual"):
     if source == "celery":
@@ -134,8 +135,17 @@ def execute_tarea(tarea_id, source="manual"):
         # 👉 AGREGAR
         elif tipo == "agregar":
             playlist = tarea.relacion.playlist
-            new_pos = tarea.posicion
+            
+            # 1. RESOLVER EL -1 EN TIEMPO DE EJECUCIÓN (Si aplica)
+            total_activas = PlaylistCancion.objects.filter(playlist=playlist, estado="activo").count()
+            
+            if tarea.posicion == -1:
+                new_pos = total_activas + 1
+                tarea.posicion = new_pos  # Seteamos el valor real en el objeto en memoria de la tarea
+            else:
+                new_pos = tarea.posicion
 
+            # 2. PETICIÓN POST A SPOTIFY (AGREGAR AL FINAL)
             payload_add = {"uris": [f"spotify:track:{track_spotify_id}"]}
             resp_add = requests.post(
                 f"https://api.spotify.com/v1/playlists/{playlist_spotify_id}/tracks",
@@ -145,34 +155,41 @@ def execute_tarea(tarea_id, source="manual"):
             )
             resp_add.raise_for_status()
 
-            total_items = PlaylistCancion.objects.filter(playlist=playlist, estado="activo").count() + 1
-            range_start = total_items - 1
-            insert_before = new_pos - 1
+            # 3. MOVER EN SPOTIFY SI NO IBA AL FINAL
+            # Spotify agrega al final por defecto. Si calculamos que va al final (total_activas + 1),
+            # nos ahorramos la petición PUT de movimiento.
+            if new_pos <= total_activas:
+                range_start = total_activas  # El índice 0-based de la canción recién agregada coincide con el total previo
+                insert_before = new_pos - 1
 
-            payload_move = {
-                "range_start": range_start,
-                "insert_before": insert_before,
-                "range_length": 1
-            }
-            resp_move = requests.put(
-                f"https://api.spotify.com/v1/playlists/{playlist_spotify_id}/tracks",
-                headers=headers,
-                json=payload_move,
-                timeout=12
-            )
-            resp_move.raise_for_status()
+                payload_move = {
+                    "range_start": range_start,
+                    "insert_before": insert_before,
+                    "range_length": 1
+                }
+                resp_move = requests.put(
+                    f"https://api.spotify.com/v1/playlists/{playlist_spotify_id}/tracks",
+                    headers=headers,
+                    json=payload_move,
+                    timeout=12
+                )
+                resp_move.raise_for_status()
 
+            # 4. ACTUALIZAR BASE DE DATOS EN TRANSACCIÓN ATÓMICA
             with transaction.atomic():
+                # Desplazar posiciones de las canciones existentes que queden por debajo
                 PlaylistCancion.objects.filter(
                     playlist=playlist,
                     estado="activo",
                     posicion__gte=new_pos
                 ).update(posicion=F("posicion") + 1)
 
+                # Activamos la relación y le ponemos su posición final calculada
                 tarea.relacion.estado = "activo"
                 tarea.relacion.posicion = new_pos
                 tarea.relacion.save(update_fields=["estado", "posicion"])
 
+                # Sincronizamos el contador total de la playlist
                 playlist.total_canciones = PlaylistCancion.objects.filter(playlist=playlist, estado="activo").count()
                 playlist.save(update_fields=["total_canciones"])
 
@@ -184,21 +201,51 @@ def execute_tarea(tarea_id, source="manual"):
                        tarea.mensaje_error, source)
             return tarea.estado
 
+        # =====================================================================
+        # BLOQUE FINAL DE ÉXITO CONSOLIDADO (AISLAMIENTO TOTAL)
+        # =====================================================================
         tarea.estado = "Completado"
         tarea.mensaje_error = None
-        tarea.save(update_fields=["estado", "mensaje_error"])
+        tarea.relacion.fecha_sincronizacion = timezone.now()
+        
+        with transaction.atomic():
+            tarea.relacion.save(update_fields=["fecha_sincronizacion"])
+            tarea.save(update_fields=["estado", "mensaje_error", "posicion"])
+
+        # El servicio de consecuencias corre en su propia burbuja aislada:
+        consecuencias_reportadas = []
+        try:
+            pos_anterior = old_pos if tipo == "posicionar" else None
+            consecuencias_reportadas = recalcular_posiciones_tareas_pendientes(
+                tarea, 
+                posicion_anterior_movimiento=pos_anterior
+            )
+        except Exception as ce:
+            # Si el servicio explota, se escribe en la consola para desarrollo,
+            # pero NO interrumpe el retorno exitoso de la tarea.
+            print(f"!!! SERVICIO DE CONSECUENCIAS FALLÓ (CONTROLADO): {str(ce)} !!!")
+            log_evento(
+                "ERROR", 
+                getattr(tarea.usuario, "username", None), 
+                "execute_tarea_consecuencias",
+                f"Error crítico aislado al recalcular consecuencias: {str(ce)}", 
+                source
+            )
+
+        # Tu flujo principal continúa como si nada hubiera pasado:
         log_evento(
             "INFO",
             getattr(tarea.usuario, "username", None),
             "execute_tarea",
             f"La tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' "
             f"en la playlist '{tarea.relacion.playlist.nombre}' "
-            f"para el {tarea.fecha_ejecucion.strftime('%d/%m/%Y') if tarea.fecha_ejecucion else 'sin fecha'} "
             f"fue ejecutada correctamente.",
             source
         )
 
+        tarea._consecuencias = consecuencias_reportadas 
         return tarea.estado
+
 
     except requests.exceptions.HTTPError as e:
         status = e.response.status_code

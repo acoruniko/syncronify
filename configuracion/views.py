@@ -194,3 +194,21 @@ def eliminar_usuario_ajax(request):
         print(f"DEBUG: Error al eliminar: {str(e)}")
         return JsonResponse({'status': 'error', 'mensaje': f"Error de DB: {str(e)}"})
     
+@login_required  
+def obtener_tiempo_restante_ajax(request):
+    # Reutilizamos la lógica que ya tienes en configuracion_home_view
+    tarea = PeriodicTask.objects.get(name='syncronify_main_task')
+    ahora = timezone.now()
+    intervalo_segundos = tarea.interval.every * 3600
+    referencia = tarea.last_run_at if tarea.last_run_at else ahora
+    
+    proxima_ejecucion = referencia + timedelta(seconds=intervalo_segundos)
+    if proxima_ejecucion < ahora:
+        segundos_desde_vencimiento = (ahora - proxima_ejecucion).total_seconds()
+        vueltas_perdidas = math.ceil(segundos_desde_vencimiento / intervalo_segundos)
+        proxima_ejecucion = proxima_ejecucion + timedelta(seconds=vueltas_perdidas * intervalo_segundos)
+
+    segundos_restantes = int((proxima_ejecucion - ahora).total_seconds())
+    
+    return JsonResponse({'segundos': segundos_restantes})
+    

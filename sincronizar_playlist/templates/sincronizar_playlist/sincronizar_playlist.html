@@ -34,7 +34,9 @@
                data-playlist="{{ t.playlist_id }}"
                data-usuario="{{ t.usuario }}">
             <span class="col-accion">{{ t.accion }}</span>
-            <span class="col-posicion">{{ t.posicion|default:"—" }}</span>
+            <span class="col-posicion">
+              {% if t.posicion == -1 or not t.posicion %}—{% else %}{{ t.posicion }}{% endif %}
+            </span>
             <span class="col-title">
               {% if t.cover_url %}
                 <img src="{{ t.cover_url }}" alt="Cover {{ t.titulo }}" class="task-cover">
@@ -405,15 +407,19 @@
     }
 
     tareas.forEach(t => {
+      
       const row = document.createElement("div");
       row.className = "task-row";
       row.dataset.id = t.id_tarea;
       row.dataset.playlist = t.playlist_id;
       row.dataset.usuario = t.usuario;
 
+      // Usamos parseInt para atrapar el -1 aunque venga como string
+      const displayPos = (parseInt(t.posicion) === -1 || !t.posicion) ? "—" : t.posicion;
+
       row.innerHTML = `
         <span class="col-accion">${t.accion}</span>
-        <span class="col-posicion">${t.posicion ?? "—"}</span>
+        <span class="col-posicion">${displayPos}</span>
         <span class="col-title">
           ${t.cover_url ? `<img src="${t.cover_url}" alt="Cover ${t.titulo}" class="task-cover">` : ""}
           <div class="title-block">

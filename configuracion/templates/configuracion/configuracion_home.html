@@ -322,28 +322,41 @@
         const display = document.getElementById('countdown-display');
         if (!display) return;
 
-        // Leemos el valor inicial enviado por el socio (Django)
         let segundos = parseInt(display.getAttribute('data-seconds'), 10);
 
         const tick = setInterval(() => {
             if (segundos <= 0) {
-                // El ciclo terminó, el metrónomo de Celery debería disparar
-                display.innerText = "Actualizando...";
                 clearInterval(tick);
-                // Damos 3 segundos de gracia para que la tarea termine y recargamos
-                setTimeout(() => window.location.reload(), 3000);
+                display.innerText = "Sincronizando...";
+
+                // Llamada AJAX para reiniciar el contador sin recargar la página
+                fetch("{% url 'obtener_tiempo_ajax' %}")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.segundos !== undefined) {
+                            // Actualizamos el atributo y reiniciamos la función
+                            display.setAttribute('data-seconds', data.segundos);
+                            sincronizarMetronomo(); 
+                        } else {
+                            // Si algo falla, recargamos como plan B
+                            setTimeout(() => window.location.reload(), 3000);
+                        }
+                    })
+                    .catch(() => {
+                        setTimeout(() => window.location.reload(), 3000);
+                    });
                 return;
             }
 
             segundos--;
             
-            // Formateo visual H:M:S
             const h = Math.floor(segundos / 3600);
             const m = Math.floor((segundos % 3600) / 60);
             const s = segundos % 60;
 
-            // Visualización limpia (0h 05m 09s)
             display.innerText = `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+            // Actualizamos el atributo para que si se reinicia sepa por dónde iba
+            display.setAttribute('data-seconds', segundos);
         }, 1000);
     }
 

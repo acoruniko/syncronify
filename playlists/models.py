@@ -64,6 +64,7 @@ class PlaylistCancion(models.Model):
     fecha_agregado = models.DateTimeField(blank=True, null=True)
     agregado_por = models.CharField(max_length=100, blank=True, null=True)
     estado = models.CharField( max_length=20, default="activo" )
+    fecha_sincronizacion = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = "playlist_canciones"

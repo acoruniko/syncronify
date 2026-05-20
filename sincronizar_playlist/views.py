@@ -13,6 +13,8 @@ from playlists.models import Playlist, Cancion, PlaylistCancion, Tarea
 import requests
 from sincronizar_playlist.services import execute_tarea
 from conexion.auth import build_authorize_url
+from django.db import transaction
+from playlists.services import procesar_consecuencias_tarea_eliminada
 
 
 @login_required
@@ -76,33 +78,51 @@ def sincronizar_playlist_home(request):
 @require_POST
 def eliminar_tarea(request, tarea_id):
     try:
-        tarea = Tarea.objects.get(id_tarea=tarea_id)
+        # 1. Obtenemos la tarea con sus relaciones
+        tarea = Tarea.objects.select_related(
+            'relacion', 
+            'relacion__cancion', 
+            'relacion__playlist'
+        ).get(id_tarea=tarea_id)
 
-        # Guardamos info antes de eliminar
-        tipo = tarea.tipo
-        cancion = tarea.relacion.cancion.nombre if tarea.relacion and tarea.relacion.cancion else "Canción desconocida"
-        playlist_nombre = tarea.relacion.playlist.nombre if tarea.relacion and tarea.relacion.playlist else "Playlist desconocida"
-        fecha = tarea.fecha_ejecucion.strftime('%d/%m/%Y') if tarea.fecha_ejecucion else "sin fecha"
+        with transaction.atomic():
+            relacion = tarea.relacion
+            tipo_tarea_original = tarea.tipo
+            tipo_tarea_lower = tipo_tarea_original.strip().lower()
+            
+            # Guardamos info para el mensaje antes de borrar
+            cancion = relacion.cancion.nombre if relacion and relacion.cancion else "Canción desconocida"
+            playlist_nombre = relacion.playlist.nombre if relacion and relacion.playlist else "Playlist desconocida"
+            fecha = tarea.fecha_ejecucion.strftime('%d/%m/%Y') if tarea.fecha_ejecucion else "sin fecha"
 
-        tarea.delete()
+            # 2. Si es 'Agregar' pendiente, marcamos la relación para que el servicio la limpie
+            if tipo_tarea_lower == "agregar" and relacion and relacion.estado == "pendiente":
+                relacion.estado = "eliminado"
+                relacion.save(update_fields=["estado"])
 
-        # 👉 mensaje más específico
+            # 3. Eliminamos la tarea físicamente
+            tarea.delete()
+
+            # 4. LLAMADA AL SERVICIO: Manejo de consecuencias (borrado en cascada)
+            # Aquí el servicio se encargará de borrar las tareas huérfanas y poner los mensajes info
+            procesar_consecuencias_tarea_eliminada(request, relacion, tipo_tarea_lower)
+
+        # Mensaje principal validado
         messages.success(
             request,
-            f"La tarea {tipo} de '{cancion}' en la playlist '{playlist_nombre}' "
+            f"La tarea {tipo_tarea_original} de '{cancion}' en la playlist '{playlist_nombre}' "
             f"para el {fecha} fue eliminada correctamente."
         )
 
         return JsonResponse({"ok": True})
 
     except Tarea.DoesNotExist:
-        messages.error(request, "La tarea ya fue eliminada o no existe")
+        messages.error(request, "La tarea ya fue eliminada o no existe.")
         return JsonResponse({"ok": False, "error": "Tarea no encontrada"}, status=404)
 
     except Exception as e:
         messages.error(request, f"Error al eliminar la tarea: {str(e)}")
         return JsonResponse({"ok": False, "error": "Error interno"}, status=500)
-
 
 
 @login_required
@@ -122,8 +142,9 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
             "auth_url": build_authorize_url(state=f"sincronizar_playlist")
         }, status=401)
 
-    # ⚠️ Ya completada
-    if tarea.estado == "Completado":
+    # ⚠️ Ya completada o no operable
+    estado_lower = tarea.estado.strip().lower() if tarea.estado else ""
+    if estado_lower == "completado":
         messages.info(
             request,
             f"La tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' "
@@ -138,6 +159,17 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
             "rate_limited": False,
             "seconds_remaining": 0,
         })
+        
+    if estado_lower in ["anulada", "cancelada"]:
+        messages.error(
+            request,
+            f"No se puede ejecutar esta tarea porque su estado actual es '{tarea.estado}'."
+        )
+        return JsonResponse({
+            "ok": False,
+            "error": f"Tarea en estado no operable: {tarea.estado}",
+            "estado": tarea.estado,
+        }, status=400)
 
     # ⚠️ Rate limit
     seconds_remaining = check_rate_limit(request, cred, show_message=True)
@@ -149,10 +181,31 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
             "seconds_remaining": seconds_remaining,
         })
 
-    # 👉 Ejecutar tarea
+    # =====================================================================
+    # 🛡️ VALIDACIONES DE COHERENCIA CRONOLÓGICA MANUAL (PRODUCCIÓN)
+    # =====================================================================
+    tipo_actual = tarea.tipo.strip().lower()
+    relacion_estado = tarea.relacion.estado.strip().lower() if tarea.relacion and tarea.relacion.estado else ""
+
+    # CONTROL DE EXISTENCIA: Evita interactuar en Spotify con algo que está "Pendiente" de agregarse
+    if tipo_actual in ["eliminar", "posicionar"] and relacion_estado == "pendiente":
+        messages.error(
+            request,
+            f"No puedes ejecutar '{tarea.tipo}' para '{tarea.relacion.cancion.nombre}' "
+            f"porque la canción aún no ha sido agregada físicamente a la playlist de Spotify."
+        )
+        return JsonResponse({"ok": False, "error": "Canción no agregada aún en Spotify"}, status=400)
+       # =====================================================================
+
+    # 👉 Ejecutar tarea (Tu línea original exacta)
     estado = execute_tarea(tarea.id_tarea)
 
     if estado == "Completado":
+        # Leemos el atributo volátil que dejó el servicio en el objeto tarea
+        consecuencias = getattr(tarea, "_consecuencias", [])
+        for msg_consecuencia in consecuencias:
+            messages.info(request, msg_consecuencia)
+
         messages.success(
             request,
             f"La tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' "
@@ -166,6 +219,7 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
             "rate_limited": False,
             "seconds_remaining": 0,
         })
+
     else:
         messages.error(
             request,

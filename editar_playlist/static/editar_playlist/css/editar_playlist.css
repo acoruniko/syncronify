@@ -296,7 +296,7 @@
 .modal-header,
 .modal-row {
   display: grid;
-  grid-template-columns: 0.3fr 0.2fr 0.5fr; /* Acción | Posición | Fecha */
+  grid-template-columns: 0.4fr 0.4fr 0.5fr; /* Acción | Posición | Fecha */
   gap: 12px;
   align-items: center;
 }
@@ -351,6 +351,19 @@
   display: flex;
   justify-content: center;   /* centra horizontalmente */
   align-items: center;       /* centra verticalmente */
+}
+
+.modal-row .col-posicion select {
+    width: 70px !important;
+    flex: none !important;
+    text-align: center;
+}
+
+.col-posicion-actual{
+  min-width: 25px; 
+  font-weight: bold; 
+  font-size: 0.9em;
+  text-align: center;
 }
 
 

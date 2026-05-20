@@ -130,14 +130,13 @@
   <div class="modal-content">
     <h2>Programar Tarea</h2>
 
-    <!-- Encabezado específico del modal -->
     <div class="modal-header">
       <span class="col-accion">Acción</span>
-      <span class="col-posicion">Posición</span>
+      <span class="col-posicion">Posición<br>
+        <small style="font-size: 0.8em; color: #b3b3b3; font-weight: normal;">(Actual - Nueva)</small></span>
       <span class="col-fecha">Fecha de Ejecución</span>
     </div>
 
-    <!-- Fila editable específica del modal -->
     <div class="modal-row">
       <div class="col-accion">
         <select id="tipo-tarea">
@@ -147,7 +146,9 @@
         </select>
       </div>
 
-      <div class="col-posicion">
+      <div class="col-posicion" style="display: flex; gap: 5px; align-items: center;">
+        <span id="label-posicion-actual" class="col-posicion-actual" title="Posición actual">--</span>
+        <span>→</span>
         <select id="posicion"></select>
       </div>
 
@@ -156,10 +157,10 @@
       </div>
     </div>
 
-    <!-- Campo extra solo si es "Agregar" -->
     <div id="col-extra" class="campo-dinamico"></div>
 
-    <!-- Botones -->
+    <input type="hidden" id="posicion_anterior" name="posicion_anterior">
+
     <div class="modal-actions">
       <button class="action-btn" id="btn-confirmar-tarea">Confirmar</button>
       <button class="action-btn" id="btn-cancelar-tarea">Cancelar</button>
@@ -190,20 +191,76 @@
   document.getElementById('btn-cancelar-tarea').addEventListener('click', cerrarModalTarea);
 
   function abrirModalTarea() {
-    // Tipo por defecto
+    const inputFecha = document.getElementById('fecha-ejecucion');
     const tipoSelect = document.getElementById('tipo-tarea');
-    tipoSelect.disabled = false
+    const contenedorPosicionActual = document.getElementById('posicion-actual-container'); // Asegúrate de tener este ID en tu HTML
+    
+    // 1. Reset estándar
+    resetearValidacionFechas();
+    let fechaMinima = inputFecha.min; 
+    let fechaMaxima = ""; // Por defecto no hay límite superior
+
+    // 2. Buscar la canción y sus tareas
+    const cancionActual = canciones.find(c => c.id_relacion == relacionSeleccionadaId);
+    
+    if (cancionActual && cancionActual.tareas) {
+        
+        // --- VALIDACIÓN FECHA MÍNIMA (Choque con Agregar) ---
+        const tareaAgregar = cancionActual.tareas.find(t => 
+            t.tipo.toLowerCase() === 'agregar' && t.estado.toLowerCase() === 'pendiente'
+        );
+        
+        if (tareaAgregar) {
+            const dMin = extraerFechaLocal(tareaAgregar.fecha_ejecucion);
+            dMin.setDate(dMin.getDate() + 1); // +1 día
+            fechaMinima = dMin.toISOString().split('T')[0];
+        }
+
+        // --- VALIDACIÓN FECHA MÁXIMA (Choque con Eliminar) ---
+        const tareaEliminar = cancionActual.tareas.find(t => 
+            t.tipo.toLowerCase() === 'eliminar' && t.estado.toLowerCase() === 'pendiente'
+        );
+
+        if (tareaEliminar) {
+            const dMax = extraerFechaLocal(tareaEliminar.fecha_ejecucion);
+            dMax.setDate(dMax.getDate() - 1); // Debe ser al menos un día ANTES de eliminar
+            fechaMaxima = dMax.toISOString().split('T')[0];
+            console.log("Validación: Límite superior por eliminación detectado:", fechaMaxima);
+        }
+    }
+
+    // 3. Aplicar restricciones al calendario
+    inputFecha.min = fechaMinima;
+    inputFecha.value = fechaMinima;
+    inputFecha.max = fechaMaxima; // Bloquea todo lo posterior al eliminar
+
+    // 4. Mostrar Posición Actual (UX)
+    if (cancionActual) {
+        // Obtenemos la posición o un guion si no tiene
+        const posVal = cancionActual.posicion || "—";
+        
+        // Seteamos el texto en el nuevo campo visual
+        const labelPos = document.getElementById('label-posicion-actual');
+        if (labelPos) labelPos.innerText = posVal;
+        
+        // Seteamos el valor en el hidden para el backend (0 si es pendiente)
+        const inputPosAnterior = document.getElementById('posicion_anterior');
+        if (inputPosAnterior) inputPosAnterior.value = cancionActual.posicion || 0;
+    }
+
+    // Configuración visual
+    tipoSelect.disabled = false;
     tipoSelect.value = 'Posicionar';
     actualizarCamposPorTipo();
-
-    // Posiciones válidas
-    poblarPosiciones(totalCancionesConPendientes);
-
-    // Fecha por defecto hoy
-    const hoy = new Date().toISOString().slice(0, 10);
-    document.getElementById('fecha-ejecucion').value = hoy;
+    poblarPosiciones(totalCanciones); // Usamos solo las activas según nuestra nueva regla
 
     document.getElementById('modal-tarea').classList.remove('hidden');
+  }
+
+  // Función auxiliar para no repetir lógica de parseo de fechas
+  function extraerFechaLocal(fechaISO) {
+      const partes = fechaISO.split('T')[0].split('-');
+      return new Date(partes[0], partes[1] - 1, partes[2]);
   }
 
   function cerrarModalTarea() {
@@ -221,35 +278,39 @@
 
     if (tipo === "Eliminar") {
       posicionSelect.disabled = true;
-      posicionSelect.innerHTML = `<option value="-">-</option>`;
+      posicionSelect.value = ""; // O el valor que manejes para null
       colExtra.innerHTML = "";
-    }
-
-    else if (tipo === "Posicionar") {
+    } else if (tipo === "Posicionar") {
       posicionSelect.disabled = false;
-      poblarPosiciones(totalCanciones);
       colExtra.innerHTML = "";
-    }
-
-    else if (tipo === "Agregar") {
-      // Solo se ejecuta en modo normal, no en modo agregar canción
+    } else if (tipo === "Agregar") {
       posicionSelect.disabled = true;
-      posicionSelect.innerHTML = `<option value="-">-</option>`;
       colExtra.innerHTML = `
-        <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/...">
+        <label for="url-cancion" class="label-url">URL de la canción</label>
+        <input type="text" id="url-cancion" placeholder="http://..." class="input-url">
       `;
     }
-  }
+  } 
 
     // Poblar posiciones 1..N
-  function poblarPosiciones(totalCanciones) {
+function poblarPosiciones(total, esAgregar = false) {
     const posicionSelect = document.getElementById("posicion");
-    posicionSelect.innerHTML = ""; // limpiar
-    for (let i = 1; i <= totalCanciones; i++) {
-      const opt = document.createElement("option");
-      opt.value = i;
-      opt.textContent = i;
-      posicionSelect.appendChild(opt);
+    posicionSelect.innerHTML = ""; 
+
+    for (let i = 1; i <= total; i++) {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.textContent = i;
+        posicionSelect.appendChild(opt);
+    }
+
+    // Si es agregar, inyectamos la opción especial al final
+    if (esAgregar) {
+        const optUltimo = document.createElement("option");
+        optUltimo.value = "-1"; // Flag para el backend
+        optUltimo.textContent = "Último";
+        optUltimo.selected = true; // Que sea la opción por defecto al agregar
+        posicionSelect.appendChild(optUltimo);
     }
   }
 
@@ -265,6 +326,7 @@
     } else if (tipo === "Posicionar") {
       posicionSelect.disabled = false;
       colExtra.innerHTML = "";
+      poblarPosiciones(totalCanciones);
     } else if (tipo === "Agregar") {
       posicionSelect.disabled = true;
       colExtra.innerHTML = `
@@ -308,6 +370,7 @@ document.getElementById('btn-confirmar-tarea').addEventListener('click', async (
     const data = await resp.json();
 
     if (!data.ok) {
+      await refrescarMensajes();
       return; // el backend ya puso el mensaje en la barra superior
     }
 
@@ -324,45 +387,57 @@ document.getElementById('btn-confirmar-tarea').addEventListener('click', async (
 
 // Eliminar tarea
 document.getElementById('btn-eliminar-tarea').addEventListener('click', async () => {
-  if (!tareaSeleccionadaId) return;
+  if (!tareaSeleccionadaId) {
+    console.warn("DEBUG: Cancelado. tareaSeleccionadaId está vacío.");
+    return;
+  }
 
   const c = canciones.find(x => x.id_relacion == relacionSeleccionadaId);
   const tarea = c?.tareas.find(t => t.id_tarea == tareaSeleccionadaId);
+  
   const usuario = tarea?.usuario || "desconocido";
-
   const confirmacion = confirm(`¿Está seguro de eliminar esta tarea programada por ${usuario}?`);
   if (!confirmacion) return;
 
   const csrfToken = getCookie('csrftoken');
+  const urlFinal = `/editar_playlist/${playlistId}/tarea/${tareaSeleccionadaId}/eliminar/`;
 
   try {
-    const resp = await fetch(
-      "{% url 'eliminar_tarea' playlist.id_playlist 0 %}".replace("0", tareaSeleccionadaId),
-      {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrfToken }
-      }
-    );
+    const resp = await fetch(urlFinal, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken }
+    });
+
     const data = await resp.json();
 
     if (!data.ok) {
-      console.error("Error al eliminar tarea:", data.error || "Respuesta inválida");
+      console.error("DEBUG: El servidor respondió con error:", data.error);
+      await refrescarMensajes();
       return;
     }
 
-    // 👉 Refrescar tareas desde el servidor
-    tareaSeleccionadaId = null;
-    await refrescarTareas(relacionSeleccionadaId);
+    console.log("DEBUG: ¡Éxito! Tarea eliminada en DB.");
 
+    // 👉 Lógica de recarga basada en la respuesta del servidor
+    if (data.requiere_reload) {
+        console.log("DEBUG: Tarea destructiva (Agregar). Recargando página completa.");
+        location.reload(); 
+        return; // Salimos de la función ya que la página se va a recargar
+    }
+
+    // 👉 Flujo normal (Refresco suave)
+    tareaSeleccionadaId = null;
+    // Mantenemos relacionSeleccionadaId si no hubo reload, para que el usuario no pierda el foco
+    
+    await refrescarCanciones(); 
+    await refrescarTareas(relacionSeleccionadaId);
     await refrescarMensajes();
 
-    // 👉 Deshabilitar botón después de eliminar
+    // Resetear UI del botón
     document.getElementById('btn-eliminar-tarea').disabled = true;
 
-    // El mensaje de éxito lo maneja Django (messages.success)
-    console.log("Tarea eliminada correctamente");
   } catch (e) {
-    console.error("Error de red al eliminar la tarea:", e);
+    console.error("DEBUG: Error de red o excepción:", e);
   }
 });
 
@@ -396,9 +471,11 @@ function renderizarTareas(c) {
       row.className = "tarea-row";
       row.dataset.tareaId = t.id_tarea;
 
+      const posVisual = (t.posicion === -1 || !t.posicion) ? "—" : t.posicion;
+
       row.innerHTML = `
         <span class="col-accion">${t.tipo}</span>
-        <span class="col-posicion">${t.posicion || "—"}</span>
+        <span class="col-posicion">${posVisual}</span>
         <span class="col-estado">${t.estado}</span>
         <span class="col-fecha">${new Date(t.fecha_ejecucion).toLocaleDateString()}</span>
       `;
@@ -461,20 +538,24 @@ function seleccionarCancion(el) {
 
 function abrirModalAgregarCancion() {
   modoAgregarCancion = true;
+  
+  // 1. Limpiamos y validamos fechas (mínimo hoy)
+  resetearValidacionFechas();
+
   const tipoSelect = document.getElementById("tipo-tarea");
   tipoSelect.value = "Agregar";
   tipoSelect.disabled = true;
 
+  const posicionSelect = document.getElementById("posicion");
+  const colExtra = document.getElementById("col-extra");
+
   posicionSelect.disabled = false;
-  poblarPosiciones(totalCancionesConPendientes + 1);
+ poblarPosiciones(totalCanciones, true);
 
   colExtra.innerHTML = `
     <label for="url-cancion" class="label-url">URL de la canción</label>
     <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/..." class="input-url">
   `;
-
-  const hoy = new Date().toISOString().slice(0, 10);
-  fechaInput.value = hoy;
 
   document.getElementById("modal-tarea").classList.remove("hidden");
 }
@@ -510,8 +591,6 @@ function initModalTarea() {
   posicionSelect.disabled = false;
   colExtra.innerHTML = ""; // sin campo extra
 }
-
-
 
 tipoTareaSelect.addEventListener("change", () => {
   const tipo = tipoTareaSelect.value;
@@ -629,6 +708,17 @@ function renderizarListaCanciones() {
     row.addEventListener("click", () => seleccionarCancion(row));
     contenedor.appendChild(row);
   });
+}
+
+function resetearValidacionFechas() {
+    const fechaInput = document.getElementById("fecha-ejecucion");
+    const hoy = new Date().toISOString().split('T')[0];
+    
+    // Por defecto, lo mínimo es hoy
+    fechaInput.min = hoy;
+    fechaInput.value = hoy;
+
+    fechaInput.removeAttribute('max');
 }
 
 
