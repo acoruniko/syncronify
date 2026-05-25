@@ -12,17 +12,25 @@ class Playlist(models.Model):
     total_canciones = models.IntegerField(blank=True, null=True)
     cover_url = models.TextField(blank=True, null=True)
     fecha_importacion = models.DateTimeField(auto_now_add=True)
+    snapshot_id = models.CharField(max_length=255, null=True, blank=True)
 
     usuario_importo = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        db_column="id_usuario_importo",  # nombre real en la BD
+        db_column="id_usuario_importo",
         on_delete=models.CASCADE
+    )
+
+    # 🚀 ENLACE AL MUCHOS A MUCHOS USANDO MODELO EXPLÍCITO
+    generos = models.ManyToManyField(
+        'Genero',
+        through='PlaylistGenero',
+        blank=True,
+        related_name='playlists'
     )
 
     class Meta:
         db_table = 'playlists'
         managed = False
-
 
     def __str__(self):
         return self.nombre
@@ -100,3 +108,23 @@ class Tarea(models.Model):
     class Meta:
         db_table = "tareas"  
         managed = False   
+    
+class Genero(models.Model):
+    id_genero = models.AutoField(primary_key=True, db_column='id_genero')
+    nombre = models.CharField(max_length=50, unique=True, db_column='nombre')
+
+    class Meta:
+        managed = False
+        db_table = 'generos'
+
+    def __str__(self):
+        return self.nombre
+    
+class PlaylistGenero(models.Model):
+    id = models.AutoField(primary_key=True)
+    playlist = models.ForeignKey(Playlist, db_column='id_playlist', on_delete=models.CASCADE)
+    genero = models.ForeignKey('Genero', db_column='id_genero', on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = 'playlist_genero'
+        managed = False

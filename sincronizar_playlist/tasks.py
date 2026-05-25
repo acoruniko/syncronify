@@ -9,8 +9,9 @@ from .services import execute_tarea
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)  # 5 min entre reintentos
 def process_tarea(self, tarea_id):
     try:
-        # ✅ Llamamos con source="celery" para que se guarden logs
-        return execute_tarea(tarea_id, source="celery")
+        # ✅ Desempaquetamos la tupla ignorando la telemetría que es para la vista Web
+        estado, _, _ = execute_tarea(tarea_id, source="celery")
+        return estado
 
     except Exception as exc:
         # 👉 Registrar el intento y el error en la BD

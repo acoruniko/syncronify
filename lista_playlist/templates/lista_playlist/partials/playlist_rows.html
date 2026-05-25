@@ -1,0 +1,21 @@
+{% load static %}
+{% for playlist in playlists %}
+  <div class="playlist-row" 
+       onclick="selectPlaylist(this)" 
+       data-id="{{ playlist.id_playlist }}" 
+       data-name="{{ playlist.nombre }}">
+    {% if playlist.cover_url %}
+      <img src="{{ playlist.cover_url }}" alt="Cover {{ playlist.nombre }}" class="playlist-cover">
+    {% else %}
+      <img src="{% static 'img/placeholder.png' %}" alt="Sin imagen" class="playlist-cover">
+    {% endif %}
+    <div class="playlist-info">
+      <h3>{{ playlist.nombre }}</h3>
+      <p>{{ playlist.total_canciones }} canciones · {{ playlist.propietario }}</p>
+    </div>
+  </div>
+{% empty %}
+  <p style="color: #727272; font-style: italic; padding: 15px; text-align: center; width: 100%;">
+    No se encontraron playlists para este filtro.
+  </p>
+{% endfor %}

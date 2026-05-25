@@ -10,36 +10,51 @@
 {% block content %}
 <div class="importar-container">
   <div class="importar-content-3col">
-    <!-- Columna izquierda: título -->
-    <div class="playlist-header">
-      <h1>Lista de Playlists</h1>
-    </div>
-
-    <!-- Columna central: lista -->
-    <div class="playlist-column">
-      <div class="playlist-list-vertical scroll-container">
-        {% for playlist in playlists %}
-          <div class="playlist-row" 
-               onclick="selectPlaylist(this)" 
-               data-id="{{ playlist.id_playlist }}" 
-               data-name="{{ playlist.nombre }}">
-            {% if playlist.cover_url %}
-              <img src="{{ playlist.cover_url }}" alt="Cover {{ playlist.nombre }}" class="playlist-cover">
-            {% else %}
-              <img src="{% static 'img/placeholder.png' %}" alt="Sin imagen" class="playlist-cover">
-            {% endif %}
-            <div class="playlist-info">
-              <h3>{{ playlist.nombre }}</h3>
-              <p>{{ playlist.total_canciones }} canciones · {{ playlist.propietario }}</p>
-            </div>
+    
+    <div class="left-column-wrapper">
+      
+      <div class="playlist-header">
+        <h1>Lista de Playlists</h1>
+      </div>
+      
+      <div class="super-bloque">
+        <div class="super-bloque-title">
+          Filtrar por Género <br>
+          <span id="generos-contador" style="font-size: 0.65em; color: #b3b3b3; font-weight: normal; margin-left: 5px;"></span>
+        </div>
+        
+        <div class="filter-specials-container">
+          <div class="genero-toggle-item special-tag selected" id="tag-filtro-todos" onclick="seleccionarFiltroTodos()">
+            Todos
           </div>
-        {% empty %}
-          <p>No hay playlists almacenadas.</p>
-        {% endfor %}
+          <div class="genero-toggle-item special-tag" id="tag-filtro-busqueda" onclick="toggleFiltroBusquedaInput()">
+            Búsqueda
+          </div>
+        </div>
+
+        <div id="wrapper-busqueda-cancion" style="display: none; margin-bottom: 12px; width: 100%;">
+          <input type="text" id="input-busqueda-cancion" class="filter-search-input" 
+                 placeholder="Escribe canción o artista..." onkeyup="ejecutarFiltroTexto(this.value)">
+        </div>
+        
+        <div id="generos-list-container" class="generos-list-vertical scroll-container">
+          {% for genero in generos %}
+            <div class="genero-toggle-item genero-filtro-tag" data-id="{{ genero.id_genero }}" onclick="toggleGeneroFiltro(this)">
+              {{ genero.nombre }}
+            </div>
+          {% empty %}
+            <p id="no-generos-msg" class="no-generos-msg">No hay géneros creados.</p>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div> 
+    <div class="playlist-column">
+      <div id="contenedor-playlists-dinamico" class="playlist-list-vertical scroll-container">
+        {% include "lista_playlist/partials/playlist_rows.html" %}
       </div>
     </div>
 
-    <!-- Columna derecha: acciones -->
     <div class="action-panel">
       <div class="action-buttons-vertical">
         <button id="btn-editar" class="action-btn" disabled>Editar</button>
@@ -63,10 +78,46 @@
         <button type="button" class="action-btn primary" onclick="window.location.href='{% url 'logs_home' %}'"> Ver Logs </button>
       </div>
     </div>
+
   </div>
 </div>
 
 <script>
+
+  function actualizarContadorGeneros() {
+    const contadorSpan = document.getElementById('generos-contador');
+    if (!contadorSpan) return;
+
+    // Contamos los géneros específicos seleccionados
+    const seleccionados = document.querySelectorAll('#generos-list-container .genero-filtro-tag.selected').length;
+    const btnTodos = document.getElementById('tag-filtro-todos');
+
+    // 🚀 Si "Todos" está seleccionado o no hay géneros individuales, el contador se limpia
+    if (btnTodos.classList.contains('selected') || seleccionados === 0) {
+        contadorSpan.textContent = '';
+    } else {
+        contadorSpan.textContent = `(${seleccionados} seleccionado${seleccionados > 1 ? 's' : ''})`;
+    }
+  }
+
+  // Función 2: Alternar el input de Búsqueda por Texto
+  function toggleFiltroBusquedaInput() {
+    const btnBusqueda = document.getElementById('tag-filtro-busqueda');
+    const wrapperInput = document.getElementById('wrapper-busqueda-cancion');
+    const inputTexto = document.getElementById('input-busqueda-cancion');
+
+    if (wrapperInput.style.display === 'none') {
+        wrapperInput.style.display = 'block';
+        btnBusqueda.classList.add('selected');
+        inputTexto.focus();
+    } else {
+        wrapperInput.style.display = 'none';
+        btnBusqueda.classList.remove('selected');
+        inputTexto.value = ''; // Limpiamos el texto al cerrar
+        // Al cerrar la búsqueda, podríamos refrescar el filtro si estuviera ejecutándose
+    }
+  }
+
   let selectedPlaylistId = null;
   let selectedPlaylistName = null;
 
@@ -94,14 +145,15 @@
   document.addEventListener('click', function(e) {
     const clickedInsidePlaylist = e.target.closest('.playlist-row');
     const clickedButtonOrLink = e.target.closest('button, a');
+    
+    // 🚀 Nueva validación: Evita limpiar la selección si tocan cualquier parte del bloque de géneros o el input
+    const clickedInsideFilterBox = e.target.closest('.super-bloque');
 
-    if (!clickedInsidePlaylist && !clickedButtonOrLink) {
-      // Deseleccionar playlists
+    if (!clickedInsidePlaylist && !clickedButtonOrLink && !clickedInsideFilterBox) {
       document.querySelectorAll('.playlist-row').forEach(p => p.classList.remove('selected'));
       selectedPlaylistId = null;
       selectedPlaylistName = null;
 
-      // Deshabilitar botones
       document.getElementById('btn-editar').disabled = true;
       document.getElementById('btn-eliminar').disabled = true;
     }
@@ -156,6 +208,103 @@
       window.location.reload(); // recarga para mostrar mensaje de error
     });
   });
+
+  // Variables globales de control de filtros
+  let generosFiltroSeleccionados = new Set();
+  let textoBusquedaActual = "";
+
+  // 🚀 FUNCIÓN MAESTRA: Despacha la consulta asíncrona unificada al backend
+  function ejecutarFiltradoGlobal() {
+    const contenedor = document.getElementById('contenedor-playlists-dinamico');
+    if (!contenedor) return;
+
+    // Convertimos el Set de IDs a una cadena separada por comas (ej: "20,34")
+    const queryGeneros = Array.from(generosFiltroSeleccionados).join(',');
+    // Escapamos el texto por seguridad de caracteres especiales
+    const queryTexto = encodeURIComponent(textoBusquedaActual);
+
+    // Construimos la URL apuntando a nuestro nuevo endpoint asíncrono
+    const url = `/lista_playlist/ajax/filtrar/?generos=${queryGeneros}&q=${queryTexto}`;
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error("Error procesando los filtros en el servidor.");
+            return response.text(); // Esperamos código HTML plano, no JSON
+        })
+        .then(htmlParcial => {
+            // Reemplazamos las filas antiguas por el nuevo set filtrado de un solo golpe
+            contenedor.innerHTML = htmlParcial;
+            
+            // Opcional: Como la lista cambió, deseleccionamos la playlist marcada anteriormente 
+            // para evitar que queden botones de edición activos apuntando a un nodo inexistente.
+            deseleccionarPlaylistActual();
+        })
+        .catch(error => {
+            console.error("Error en el filtrado dinámico:", error);
+        });
+  }
+
+  // Modificación de la función "Todos": Al pulsarse, limpia filtros y ejecuta
+  function seleccionarFiltroTodos() {
+    const btnTodos = document.getElementById('tag-filtro-todos');
+    if (btnTodos.classList.contains('selected')) return;
+
+    btnTodos.classList.add('selected');
+    generosFiltroSeleccionados.clear();
+    
+    document.querySelectorAll('.genero-filtro-tag').forEach(tag => {
+        tag.classList.remove('selected');
+    });
+
+    // 🚀 Forzamos la limpieza del contador
+    actualizarContadorGeneros();
+
+    ejecutarFiltradoGlobal();
+  }
+
+  // Modificación de la función al clickear géneros individuales
+  function toggleGeneroFiltro(el) {
+    const generoId = parseInt(el.dataset.id);
+    const btnTodos = document.getElementById('tag-filtro-todos');
+
+    // 1. Mutamos el Set y el estado visual del elemento clickeado
+    if (generosFiltroSeleccionados.has(generoId)) {
+        generosFiltroSeleccionados.delete(generoId);
+        el.classList.remove('selected');
+    } else {
+        generosFiltroSeleccionados.add(generoId);
+        el.classList.add('selected');
+    }
+
+    // 2. 🚀 Sincronizamos el botón "Todos" de inmediato antes de pintar el contador
+    if (generosFiltroSeleccionados.size > 0) {
+        btnTodos.classList.remove('selected');
+    } else {
+        btnTodos.classList.add('selected');
+    }
+
+    // 3. 🚀 Actualizamos el contador ahora que los estados de las clases están al día
+    actualizarContadorGeneros();
+
+    // 4. Despachamos la actualización asíncrona
+    ejecutarFiltradoGlobal();
+  }
+
+  // Modificación del input de texto de búsqueda por canciones
+  function ejecutarFiltroTexto(cadena) {
+    textoBusquedaActual = cadena;
+    // Lanzamos la búsqueda. Nota: Podríamos meter un debounce si la base crece mucho, 
+    // pero para MySQL local con indexación por PK va sobrado de velocidad.
+    ejecutarFiltradoGlobal();
+  }
+
+  // Función auxiliar para resetear los botones laterales de acción al refrescar el DOM
+  function deseleccionarPlaylistActual() {
+    selectedPlaylistId = null;
+    selectedPlaylistName = null;
+    document.getElementById('btn-editar').disabled = true;
+    document.getElementById('btn-eliminar').disabled = true;
+  }
 
 </script>
 {% endblock %}

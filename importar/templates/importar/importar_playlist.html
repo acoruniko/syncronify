@@ -11,8 +11,52 @@
 <div class="importar-container">
   <div class="importar-content">
     <!-- Columna izquierda: título -->
-    <div class="playlist-header">
-      <h1>Importar Playlists</h1>
+     
+    <div class="left-column-wrapper">
+      
+      <div class="playlist-header">
+        <h1>Importar Playlists</h1>
+      </div>
+
+      <div class="super-bloque" >
+        <div class="super-bloque-title">
+          Géneros <span id="generos-contador" style="font-size: 0.8em; color: #b3b3b3; font-weight: normal; margin-left: 5px;"></span>
+        </div>
+        
+        <div id="generos-list-container" class="generos-list-vertical scroll-container">
+          {% for genero in generos %}
+            <div class="genero-toggle-item" data-id="{{ genero.id_genero }}" onclick="toggleGeneroTag(this)">
+              {{ genero.nombre }}
+            </div>
+          {% empty %}
+            <p id="no-generos-msg" class="no-generos-msg">No hay géneros creados.</p>
+          {% endfor %}
+        </div>
+
+        <div class="super-bloque-footer">
+          <button type="button" onclick="abrirModalGeneros()" class="action-btn" >
+            Editar Géneros
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="modal-gestor-generos" class="modal-overlay" onclick="cerrarModalAlTocarFondo(event)">
+      <div class="modal-content super-bloque">
+        <div class="super-bloque-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+          <span>Editar Géneros</span>
+          <span class="modal-close-x" onclick="cerrarModalGeneros()">&times;</span>
+        </div>
+        
+        <div id="modal-generos-list" class="modal-lista-scroll scroll-container">
+          </div>
+
+        <div class="modal-input-group">
+          <input type="text" id="modal-nuevo-genero-nombre" placeholder="Nuevo género..." onkeydown="evaluarTeclaEnter(event)">
+          <button type="button" onclick="guardarGeneroModal()" class="action-btn primary" style="padding: 8px 16px; font-size: 13px;">+</button>
+        </div>
+      </div>
     </div>
 
     <!-- Columna central: lista + paginación -->
@@ -64,15 +108,178 @@
 <script>
   let selectedPlaylistId = null;
   let selectedPlaylistName = null;
+  let generosSeleccionados = new Set();
 
   const urlParams = new URLSearchParams(window.location.search);
   const currentPage = urlParams.get('page') || 1;
 
-  function selectPlaylist(el) {
-    // Si la lista está bloqueada, no permitir selección
-    if (document.querySelector('.playlist-list-vertical').classList.contains('disabled')) {
+  // Lógica del Toggle de Géneros basada en Clases CSS
+  function toggleGeneroTag(el) {
+    const generoId = parseInt(el.dataset.id);
+    
+    if (generosSeleccionados.has(generoId)) {
+      generosSeleccionados.delete(generoId);
+      el.classList.remove('selected');
+    } else {
+      generosSeleccionados.add(generoId);
+      el.classList.add('selected');
+      actualizarContadorGeneros();
+    }
+  }
+
+  // Control de ventanas y estados
+  function abrirModalGeneros() {
+    renderizarListaModal();
+    document.getElementById('modal-gestor-generos').style.display = 'flex';
+    document.getElementById('modal-nuevo-genero-nombre').focus();
+  }
+
+  function cerrarModalGeneros() {
+    document.getElementById('modal-gestor-generos').style.display = 'none';
+    actualizarListaPrincipalDesdeMemoria();
+  }
+
+  function cerrarModalAlTocarFondo(e) {
+    if (e.target.id === 'modal-gestor-generos') cerrarModalGeneros();
+  }
+
+  function evaluarTeclaEnter(e) {
+    if (e.key === 'Enter') guardarGeneroModal();
+  }
+
+  // Renderiza la lista del Gestor dentro del Modal
+  function renderizarListaModal() {
+    const listCont = document.getElementById('modal-generos-list');
+    listCont.innerHTML = '';
+
+    const itemsExteriores = document.querySelectorAll('.genero-toggle-item');
+
+    if (itemsExteriores.length === 0) {
+      listCont.innerHTML = `<p class="no-generos-msg" style="text-align:center;">No hay géneros en el catálogo.</p>`;
       return;
     }
+
+    itemsExteriores.forEach(item => {
+      const id = parseInt(item.dataset.id);
+      const nombre = item.textContent.trim();
+      const estaSeleccionado = generosSeleccionados.has(id);
+
+      const row = document.createElement('div');
+      row.className = 'modal-genero-row';
+      // Si está seleccionado afuera, le damos un toque opaco o aviso para advertir que está activo en la selección actual
+      row.innerHTML = `
+        <span style="${estaSeleccionado ? 'color: #1db954; font-weight: bold;' : ''}">${nombre} ${estaSeleccionado ? '(Activo)' : ''}</span>
+        <span class="btn-eliminar-tag" onclick="eliminarGeneroDesdeModal(${id}, this)">×</span>
+      `;
+      listCont.appendChild(row);
+    });
+  }
+
+  function actualizarContadorGeneros() {
+    const contadorSpan = document.getElementById('generos-contador');
+    if (!contadorSpan) return;
+
+    // Contamos cuántos elementos tienen la clase 'selected' en el contenedor de la izquierda
+    const seleccionados = document.querySelectorAll('#generos-list-container .genero-toggle-item.selected').length;
+
+    // Si hay seleccionados mostramos el texto, si no, lo dejamos vacío
+    if (seleccionados > 0) {
+        contadorSpan.textContent = `(${seleccionados} seleccionado${seleccionados > 1 ? 's' : ''})`;
+    } else {
+        contadorSpan.textContent = '';
+    }
+  }
+
+  // Guardar desde el Input del Modal
+  function guardarGeneroModal() {
+    const input = document.getElementById('modal-nuevo-genero-nombre');
+    const nombre = input.value.trim();
+    if (!nombre) return;
+
+    // 🚀 Cambiamos la URL estática por el tag nativo de Django para evitar desajustes de rutas
+    fetch('/importar/generos/crear/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+        body: JSON.stringify({ nombre: nombre })
+    })
+    .then(res => {
+        // Validación preventiva: Si el servidor no responde un 200, inspeccionamos el error
+        if (!res.ok) {
+            throw new Error(`Error en el servidor: Código ${res.status}`);
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (data.ok) {
+            input.value = '';
+            if (data.nuevo) {
+                const idInt = parseInt(data.id_genero);
+                
+                const extContainer = document.getElementById('generos-list-container');
+                const divNode = document.createElement('div');
+                divNode.className = 'genero-toggle-item'; 
+                divNode.dataset.id = idInt;
+                divNode.textContent = data.nombre;
+                divNode.onclick = function() { toggleGeneroTag(this); };
+                extContainer.appendChild(divNode);
+            }
+            renderizarListaModal();
+        } else {
+            alert(data.error);
+        }
+    })
+    .catch(err => {
+        console.error("Error al crear género:", err);
+        alert("Hubo un fallo en la comunicación con el servidor. Revisa las rutas en urls.py.");
+    });
+  }
+
+  // Eliminar vía AJAX directo de la Base de Datos
+  function eliminarGeneroDesdeModal(id, elementoFila) {
+    if (!confirm("¿Seguro que deseas eliminar este género del sistema? Se desvinculará de cualquier playlist.")) return;
+
+    fetch(`/importar/generos/eliminar/${id}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error(`Servidor respondió con código ${res.status}`);
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (data.ok) {
+            generosSeleccionados.delete(parseInt(id));
+            
+            const nodoExterior = document.querySelector(`.genero-toggle-item[data-id="${id}"]`);
+            if (nodoExterior) nodoExterior.remove();
+            
+            renderizarListaModal();
+        } else {
+            alert("Error al eliminar: " + data.error);
+        }
+    })
+    .catch(err => console.error("Error al eliminar género:", err));
+  }
+
+  // Sincroniza la lista de afuera cuando se cierra el gestor modal
+  function actualizarListaPrincipalDesdeMemoria() {
+    const extContainer = document.getElementById('generos-list-container');
+    const itemsRestantes = extContainer.querySelectorAll('.genero-toggle-item');
+    
+    const noMsg = document.getElementById('no-generos-msg');
+    if (itemsRestantes.length === 0) {
+        if (!noMsg) {
+            extContainer.innerHTML = `<p id="no-generos-msg" class="no-generos-msg">No hay géneros creados.</p>`;
+        }
+    } else {
+        if (noMsg) noMsg.remove();
+    }
+  }
+
+  function selectPlaylist(el) {
+    if (document.querySelector('.playlist-list-vertical').classList.contains('disabled')) return;
 
     {% if not rate_limited %}
       document.querySelectorAll('.playlist-row').forEach(p => p.classList.remove('selected'));
@@ -86,10 +293,7 @@
   }
 
   document.getElementById('importar-btn').addEventListener('click', function() {
-    {% if rate_limited %}
-      return;
-    {% endif %}
-
+    {% if rate_limited %} return; {% endif %}
     if (!selectedPlaylistId) return;
 
     const confirmar = confirm(`¿Está seguro que desea importar la playlist "${selectedPlaylistName}"?`);
@@ -98,13 +302,14 @@
       btn.disabled = true;
       btn.textContent = "Importando…";
 
-      // Bloquear la lista
       document.querySelector('.playlist-list-vertical').classList.add('disabled');
-
-      // Bloquear los botones de navegación
       document.querySelector('.nav-buttons').classList.add('disabled');
 
-      window.location.href = `/importar/${selectedPlaylistId}/confirmar/?page=${currentPage}`;
+      const arrayGeneros = Array.from(generosSeleccionados);
+      const queryGeneros = arrayGeneros.length > 0 ? `&generos=${arrayGeneros.join(',')}` : '';
+
+      // 🚀 Concatenamos la query de géneros de forma limpia al final
+      window.location.href = `/importar/${selectedPlaylistId}/confirmar/?page=${currentPage}${queryGeneros}`;
     }
   });
 
@@ -112,11 +317,10 @@
     const clickedInsidePlaylist = e.target.closest('.playlist-row');
     const clickedButtonOrLink = e.target.closest('button, a');
 
-    if (!clickedInsidePlaylist && !clickedButtonOrLink) {
-      // Si la lista está bloqueada, no permitir deselección
-      if (document.querySelector('.playlist-list-vertical').classList.contains('disabled')) {
-        return;
-      }
+    const clickedInsideGeneros = e.target.closest('.super-bloque');
+
+    if (!clickedInsidePlaylist && !clickedButtonOrLink && !clickedInsideGeneros) {
+      if (document.querySelector('.playlist-list-vertical').classList.contains('disabled')) return;
 
       document.querySelectorAll('.playlist-row').forEach(p => p.classList.remove('selected'));
       selectedPlaylistId = null;

@@ -197,11 +197,19 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
         return JsonResponse({"ok": False, "error": "Canción no agregada aún en Spotify"}, status=400)
        # =====================================================================
 
-    # 👉 Ejecutar tarea (Tu línea original exacta)
-    estado = execute_tarea(tarea.id_tarea)
+    # 👉 Ejecutar tarea y recibir telemetría real por retorno
+    estado, concilio, mensaje_telemetria = execute_tarea(tarea.id_tarea)
+    
+    # 🔄 REFRESCAR LA INSTANCIA LOCAL de la vista de forma segura
+    tarea.refresh_from_db()
+
+    # Si el servicio nos avisa que se ejecutó la conciliación, disparamos el mensaje de inmediato
+    if concilio and mensaje_telemetria:
+        messages.info(request, mensaje_telemetria)
 
     if estado == "Completado":
-        # Leemos el atributo volátil que dejó el servicio en el objeto tarea
+        # Leemos el atributo volátil recalculado en las consecuencias (esto sí funciona si usas la misma instancia recreada)
+        # Para asegurarnos debido al refresh, buscamos las consecuencias del flujo
         consecuencias = getattr(tarea, "_consecuencias", [])
         for msg_consecuencia in consecuencias:
             messages.info(request, msg_consecuencia)
@@ -209,8 +217,7 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
         messages.success(
             request,
             f"La tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' "
-            f"en la playlist '{tarea.relacion.playlist.nombre}' "
-            f"se ejecutó correctamente."
+            f"en la playlist '{tarea.relacion.playlist.nombre}' se ejecutó correctamente."
         )
         return JsonResponse({
             "ok": True,
@@ -220,22 +227,17 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
             "seconds_remaining": 0,
         })
 
+    elif estado == "Anulada":
+        motivo = tarea.mensaje_error or "La playlist se sincronizó con Spotify y esta acción ya no es necesaria."
+        messages.warning(
+            request,
+            f"La tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' en la playlist '{tarea.relacion.playlist.nombre}' no se ejecutó porque se encuentra Anulada."
+        )
+        return JsonResponse({"ok": False, "error": motivo, "estado": tarea.estado})
+
     else:
         messages.error(
             request,
-            f"Error al ejecutar la tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' "
-            f"en la playlist '{tarea.relacion.playlist.nombre}': {tarea.mensaje_error}"
+            f"Error al ejecutar la tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' en la playlist '{tarea.relacion.playlist.nombre}': {tarea.mensaje_error}"
         )
-        return JsonResponse({
-            "ok": False,
-            "error": tarea.mensaje_error,
-            "intentos": tarea.intentos,
-            "rate_limited": False,
-            "seconds_remaining": 0,
-        })
-
-
-
-
-
-
+        return JsonResponse({"ok": False, "error": tarea.mensaje_error, "estado": tarea.estado})

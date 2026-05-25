@@ -1,4 +1,6 @@
-/* Contenedor principal */
+/* ============================================
+   1. ESTRUCTURA, GRID Y LAYOUT PRINCIPAL
+   ============================================ */
 .importar-container {
   padding: 2rem;
   display: flex;
@@ -8,42 +10,133 @@
 /* Layout en 3 columnas */
 .importar-content {
   display: grid;
-  grid-template-columns: 250px 800px 250px; /* título | lista | botones */
+  grid-template-columns: 250px 800px 250px; /* título/géneros | lista | botones */
   gap: 2rem;
   align-items: start;
 }
 
-/* Columna izquierda: título estilo Spotify */
+/* Agrupador de la columna izquierda */
+.left-column-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+/* Tu cabecera original (No se toca lo que ya funciona) */
 .playlist-header {
   padding: 1.5rem;
   border-radius: 8px;
   display: flex;
-  justify-content: right; /* centra horizontalmente */
-  align-items: center;     /* centra verticalmente */
+  justify-content: right; 
+  align-items: center;    
 }
 
 .playlist-header h1 {
-  background: linear-gradient(180deg, #4a4a4a, #121212); /* degradado gris más marcado */
+  background: linear-gradient(180deg, #4a4a4a, #121212); 
   padding: 1.5rem;
   border-radius: 8px;
   margin: 0;
-  font-size: 40px; /* más grande */
+  font-size: 40px; 
   font-weight: bold;
   color: #fff;
   text-align: center;
-  white-space: nowrap; /* evita que se parta en dos líneas */
-  letter-spacing: 1px; /* un poco más de aire */
+  white-space: nowrap; 
+  letter-spacing: 1px; 
 }
 
-/* Columna central: lista */
+/* ============================================
+   2. CONTENEDOR DE GÉNEROS (Caja Izquierda)
+   ============================================ */
+.super-bloque {
+  width: 300px;         
+  background: #181818;
+  border-radius: 12px;
+  padding: 15px;
+  border: 1px solid #2a2a2a;
+  box-sizing: border-box;
+
+  /* 🚀 EL TRUCO DE CONTROL AXIAL: */
+  margin-left: -100px;   /* 👈 Empuja el bloque de géneros hacia la izquierda del layout */
+  position: relative;   /* Asegura que el renderizado respete el desplazamiento */
+  z-index: 2;
+}
+
+.super-bloque-title {
+  color: #1db954;
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 1.5px;
+  padding-bottom: 15px;
+}
+
+.super-bloque-footer {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.generos-list-vertical {
+  display: grid;                        /* 👈 Cambiado de flex a grid */
+  grid-template-columns: repeat(2, 1fr); /* 👈 2 columnas idénticas y simétricas */
+  gap: 8px;                             /* Espaciado uniforme entre celdas */
+  max-height: 205px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 1rem;                  /* Empuja el botón hacia abajo para que respire */
+}
+
+
+/* Tags / Toggles de género */
+.genero-toggle-item {
+  width: 100%;                          /* Fuerza al tag a ocupar toda su celda */
+  text-align: center;                   /* Centra el texto del género */
+  padding: 8px 6px;                     /* Ajuste de aire interno para modo columna */
+  background: #282828;
+  border: 1px solid transparent;
+  border-radius: 6px;                   /* Un radio ligeramente menor se alinea mejor en cuadrícula */
+  cursor: pointer;
+  user-select: none;
+  color: #b3b3b3;
+  font-size: 13px;
+  font-weight: bold;
+  white-space: nowrap;                  /* Evita que el texto se rompa en dos líneas */
+  overflow: hidden;
+  text-overflow: ellipsis;              /* Si el nombre es muy largo, mete puntos suspensivos */
+  transition: all 0.2s ease;
+}
+
+.genero-toggle-item:hover {
+  background: #3e3e3e;
+  color: #fff;
+}
+
+/* Estado seleccionado (Verde Spotify) */
+.genero-toggle-item.selected {
+  background: #1db954;
+  color: #000;
+  font-weight: bold;
+}
+
+.no-generos-msg {
+  color: #727272;
+  font-size: 13px;
+  font-style: italic;
+  margin: 10px 0;
+  grid-column: 1 / -1; 
+  text-align: center; 
+  width: 100%;
+}
+
+/* ============================================
+   3. COLUMNA CENTRAL: LISTA DE PLAYLISTS
+   ============================================ */
 .playlist-column {
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
-/* Lista vertical */
 .playlist-list-vertical {
   max-height: 600px;
   overflow-y: auto;
@@ -53,7 +146,6 @@
   width: 800px;
 }
 
-/* Fila de playlist */
 .playlist-row {
   display: flex;
   align-items: center;
@@ -64,15 +156,16 @@
   cursor: pointer;
   transition: background 0.2s ease;
 }
+
 .playlist-row:hover {
   background: #282828;
 }
+
 .playlist-row.selected {
   background: #333333;
   border: 2px solid #1db954;
 }
 
-/* Cover */
 .playlist-cover {
   width: 48px;
   height: 48px;
@@ -81,7 +174,6 @@
   margin-right: 12px;
 }
 
-/* Info */
 .playlist-info h3 {
   margin: 0;
   font-size: 16px;
@@ -91,13 +183,13 @@
   text-overflow: ellipsis;
   max-width: 650px;
 }
+
 .playlist-info p {
   margin: 2px 0 0;
   font-size: 13px;
   color: #b3b3b3;
 }
 
-/* Paginación debajo de la lista */
 .nav-buttons {
   font-size: 13px;
   margin-top: 1rem;
@@ -106,17 +198,18 @@
   gap: 1rem;
 }
 
-/* Columna derecha: acciones */
+/* ============================================
+   4. COLUMNA DERECHA: PANEL DE ACCIONES
+   ============================================ */
 .action-panel {
   display: flex;
   flex-direction: column;
-  align-items: center;   /* centra horizontalmente */
-  justify-content: center; /* centra verticalmente */
+  align-items: center;
+  justify-content: center;
   gap: 1rem;
-  height: 100%; /* ocupa toda la altura de la columna */
+  height: 100%;
 }
 
-/* Botones en columna */
 .action-buttons-vertical {
   font-size: 13px;
   display: flex;
@@ -125,6 +218,113 @@
   gap: 10px;
 }
 
+/* ============================================
+   5. INTERFACES DE BLOQUEO (LOADING STATES)
+   ============================================ */
+.playlist-list-vertical.disabled,
+.nav-buttons.disabled,
+.action-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   6. VENTANA MODAL (GESTIÓN OSCURA)
+   ============================================ */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(3px);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  width: 300px !important;
+  animation: fadeInModal 0.2s ease-out;
+}
+
+.modal-close-x {
+  cursor: pointer;
+  font-size: 24px;
+  color: #666;
+  transition: color 0.2s;
+}
+
+.modal-close-x:hover {
+  color: #fff;
+}
+
+.modal-lista-scroll {
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 1.5rem;
+  padding-right: 4px;
+}
+
+.modal-genero-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #222;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #2a2a2a;
+}
+
+.modal-genero-row span {
+  font-size: 14px;
+  color: #fff;
+}
+
+.btn-eliminar-tag {
+  cursor: pointer;
+  color: #ff4d4d;
+  font-weight: bold;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-eliminar-tag:hover {
+  background: rgba(255, 77, 77, 0.15);
+}
+
+.modal-input-group {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.modal-input-group input {
+  background: #000;
+  border: 1px solid #333;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  flex-grow: 1;
+  outline: none;
+}
+
+.modal-input-group input:focus {
+  border-color: #535353;
+}
+
+/* ============================================
+   7. SCROLLBAR TRASLÚCIDO
+   ============================================ */
 .scroll-container::-webkit-scrollbar {
   width: 8px;
 }
@@ -135,33 +335,15 @@
   background-color: transparent;
   border-radius: 0;
 }
-.scroll-container:hover::-webkit-scrollbar {
-  background-color: transparent;
-}
 .scroll-container:hover::-webkit-scrollbar-thumb {
   background-color: #555;
-}
-.scroll-container:hover::-webkit-scrollbar-track {
-  background-color: transparent;
 }
 .scroll-container:hover::-webkit-scrollbar-thumb:hover {
   background-color: #888;
 }
 
-/* Cuando la lista está deshabilitada */
-.playlist-list-vertical.disabled {
-  opacity: 0.5;          /* se ve opaca */
-  pointer-events: none;  /* no permite clics */
-}
 
-/* Cuando los botones de navegación están deshabilitados */
-.nav-buttons.disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-/* También puedes aplicar a cualquier botón con disabled */
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+@keyframes fadeInModal {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }

@@ -1,5 +1,6 @@
-/* Contenedor principal */
-
+/* ==========================================================================
+   1. LAYOUT, CONTENEDORES PRINCIPALES Y COLUMNA IZQUIERDA
+   ========================================================================== */
 .editar-container {
   padding: 2rem;
   display: flex;
@@ -8,16 +9,100 @@
   padding-top: 10px;
 }
 
-/* Grid principal: playlist izquierda + detalles centro + acciones derecha */
 .editar-layout {
   display: grid;
-  grid-template-columns: 700px 400px 200px; /* tercera columna más cómoda para botones */
+  grid-template-columns: 300px 1fr 400px 250px;  /* tercera columna más cómoda para botones */
   gap: 2rem;
-  width: 1320px; /* ajustado al nuevo total */
   height: calc(80vh - 5px);
+  width: 100%;
 }
 
-/* Columna izquierda con scroll */
+.left-column-wrapper {
+  margin-top: 200px; 
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.super-bloque {
+  width: 300px;         
+  background: #181818;
+  border-radius: 12px;
+  padding: 15px;
+  border: 1px solid #2a2a2a;
+  box-sizing: border-box;
+}
+
+.super-bloque-title {
+  color: #1db954;
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 1.5px;
+  padding-bottom: 15px;
+}
+
+.super-bloque-footer {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* ==========================================================================
+   2. SECCIÓN DE GÉNEROS (CUADRÍCULA Y CONTROLES VIRTUALES)
+   ========================================================================== */
+.generos-list-vertical {
+  display: grid;                                /* 👈 Cambiado de flex a grid */
+  grid-template-columns: repeat(2, 1fr); /* 👈 2 columnas idénticas y simétricas */
+  gap: 8px;                             /* Espaciado uniforme entre celdas */
+  max-height: 205px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 1rem;                  /* Empuja el botón hacia abajo para que respire */
+}
+
+.genero-toggle-item {
+  width: 100%;                          /* Fuerza al tag a ocupar toda su celda */
+  text-align: center;                   /* Centra el texto del género */
+  padding: 8px 6px;                     /* Ajuste de aire interno para modo columna */
+  background: #282828;
+  border: 1px solid transparent;
+  border-radius: 6px;                   /* Un radio ligeramente menor se alinea mejor en cuadrícula */
+  cursor: pointer;
+  user-select: none;
+  color: #b3b3b3;
+  font-size: 13px;
+  font-weight: bold;
+  white-space: nowrap;                  /* Evita que el texto se rompa en dos líneas */
+  overflow: hidden;
+  text-overflow: ellipsis;              /* Si el nombre es muy largo, mete puntos suspensivos */
+  transition: all 0.2s ease;
+}
+
+.genero-toggle-item:hover {
+  background: #3e3e3e;
+  color: #fff;
+}
+
+.genero-toggle-item.selected {
+  background: #1db954;
+  color: #000;
+  font-weight: bold;
+}
+
+.no-generos-msg {
+  color: #727272;
+  font-size: 13px;
+  font-style: italic;
+  margin: 10px 0;
+  grid-column: 1 / -1; 
+  text-align: center; 
+  width: 100%;
+}
+
+/* ==========================================================================
+   3. COLUMNA PLAYLIST (CABECERA ESTILO SPOTIFY Y CONTROL DE TEXTO)
+   ========================================================================== */
 .playlist-section {
   display: flex;
   flex-direction: column;
@@ -27,7 +112,6 @@
   box-sizing: border-box;
 }
 
-/* Encabezado estilo Spotify */
 .playlist-header {
   display: flex;
   align-items: center;
@@ -39,17 +123,20 @@
   height: 220px;
   box-sizing: border-box;
 }
+
 .playlist-cover-big {
   width: 160px;
   height: 160px;
   object-fit: cover;
   border-radius: 8px;
 }
+
 .playlist-info-block {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
 }
+
 .playlist-title {
   margin: 0;
   font-weight: 700;
@@ -64,7 +151,6 @@
   word-break: break-word;
 }
 
-/* Hover: quita los puntos y activa scroll */
 .playlist-title:hover {
   -webkit-line-clamp: unset;     /* 👈 se quita el límite */
   text-overflow: unset;          /* 👈 se quitan los 3 puntos */
@@ -72,20 +158,23 @@
   max-height: 3.6em;             /* mantiene altura fija */
 }
 
-/* Scroll elegante */
 .playlist-title::-webkit-scrollbar {
   width: 6px;
 }
+
 .playlist-title::-webkit-scrollbar-thumb {
   background: #555;
   border-radius: 4px;
 }
+
 .playlist-title::-webkit-scrollbar-thumb:hover {
   background: #888;
 }
+
 .playlist-title.long {
   font-size: 24px;
 }
+
 .playlist-description {
   margin: 8px 0;
   color: #d0d0d0;
@@ -97,28 +186,35 @@
   overflow: hidden;
   max-height: 2.8em;
 }
+
 .playlist-description:hover {
   overflow-y: auto;
   -webkit-line-clamp: unset;
   max-height: 2.8em;
 }
+
 .playlist-description::-webkit-scrollbar {
   width: 6px;
 }
+
 .playlist-description::-webkit-scrollbar-thumb {
   background: #555;
   border-radius: 4px;
 }
+
 .playlist-description::-webkit-scrollbar-thumb:hover {
   background: #888;
 }
+
 .playlist-meta {
   margin-top: 6px;
   color: #b3b3b3;
   font-size: 14px;
 }
 
-/* Sticky para encabezado de canciones */
+/* ==========================================================================
+   4. LISTADO DE CANCIONES Y COMPORTAMIENTO DE FILAS
+   ========================================================================== */
 .songs-header.sticky {
   position: sticky;
   top: 0;
@@ -127,7 +223,6 @@
   z-index: 10;
 }
 
-/* Lista de canciones */
 .songs-header,
 .song-row {
   display: grid;
@@ -135,6 +230,7 @@
   align-items: center;
   gap: 8px;
 }
+
 .songs-header {
   color: #b3b3b3;
   font-size: 13px;
@@ -149,7 +245,6 @@
   width: 100%;
 }
 
-
 .song-row {
   padding: 8px;
   border-radius: 6px;
@@ -157,13 +252,16 @@
   cursor: pointer;
   color: #fff;
 }
+
 .song-row:hover {
   background: #242424;
 }
+
 .song-row.selected {
   background: #333333;
   border: 2px solid #1db954;
 }
+
 .song-cover {
   width: 40px;
   height: 40px;
@@ -172,6 +270,7 @@
   margin-right: 8px;
   vertical-align: middle;
 }
+
 .col-title {
   display: flex;
   align-items: center;
@@ -201,12 +300,15 @@
   max-height: 2.8em;             /* altura aprox. 2 líneas */
   word-break: break-word;
 }
+
 .empty {
   color: #b3b3b3;
   padding: 1rem;
 }
 
-/* Columna derecha: acciones */
+/* ==========================================================================
+   5. PANEL CENTRAL (DETALLES DE CANCIÓN Y CAJAS DINÁMICAS)
+   ========================================================================== */
 .action-panel {
   display: flex;
   flex-direction: column;
@@ -216,7 +318,6 @@
   height: 100%;
 }
 
-/* Botones estilo lista_playlist */
 .action-buttons-vertical {
   display: flex;
   flex-direction: column;
@@ -224,12 +325,12 @@
   gap: 10px;
 }
 
-/* Panel central: detalles y tareas */
 .details-section {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
+
 .detalle-box {
   background: #181818;
   color: #fff;
@@ -237,19 +338,23 @@
   border-radius: 8px;
   font-size: 14px;
 }
+
 .detalle-box h3 {
   margin-top: 0;
   font-size: 18px;
   color: #1db954;
 }
+
 .detalle-box p {
   margin: 6px 0;
 }
+
 #lista-tareas {
   list-style: none;
   padding-left: 0;
   margin-top: 8px;
 }
+
 #lista-tareas li {
   background: #282828;
   padding: 6px 10px;
@@ -257,8 +362,9 @@
   margin-bottom: 4px;
 }
 
-
-/* --- Contenedor general del modal --- */
+/* ==========================================================================
+   6. VENTANAS MODALES GENERALES (ESTRUCTURAS Y GRIDS DE DATOS)
+   ========================================================================== */
 .modal {
   position: fixed;
   inset: 0;
@@ -273,7 +379,6 @@
   display: none;
 }
 
-/* --- Caja interna --- */
 .modal-content {
   background: #181818;
   color: #fff;
@@ -292,7 +397,6 @@
   margin-bottom: 6px;
 }
 
-/* --- Header y fila del modal (grid de 3 columnas) --- */
 .modal-header,
 .modal-row {
   display: grid;
@@ -315,14 +419,12 @@
   background: #181818;
   padding: 6px 8px;
   margin-bottom: 12px;
-
 }
 
 .modal-row input {
   align-items: center;
 }
 
-/* --- Inputs y selects dentro del modal --- */
 .modal-row select,
 .modal-row input {
   width: 80%;
@@ -337,7 +439,6 @@
   text-align: center;
 }
 
-/* --- Acciones del modal --- */
 .modal-actions {
   display: flex;
   gap: 10px;
@@ -366,8 +467,6 @@
   text-align: center;
 }
 
-
-/* --- Campos dinámicos adicionales --- */
 .campo-dinamico {
   margin-top: 1rem;
 }
@@ -376,7 +475,9 @@
   display: none;
 }
 
-
+/* ==========================================================================
+   7. CONTROLADORES E INTERFACES ESPECÍFICAS DE TAREAS
+   ========================================================================== */
 .tareas-header, .tarea-row {
   display: grid;
   grid-template-columns: 2fr 1fr 2fr 2fr;
@@ -395,13 +496,11 @@
   cursor: pointer;
 }
 
-/* Tareas → idéntico estilo */
 .tarea-row.selected {
   background-color: #e6fff0;   /* mismo verde claro */
   border-left: 4px solid #28a745; /* mismo borde verde */
 }
 
-/* Lista de tareas */
 .tareas-list {
   display: flex;
   flex-direction: column;
@@ -412,7 +511,6 @@
   text-align: center;
 }
 
-/* Fila de tarea con estilo idéntico a canción */
 .tarea-row {
   padding: 8px;
   border-radius: 6px;
@@ -430,8 +528,6 @@
   border: 2px solid #1db954; /* mismo borde verde Spotify */
 }
 
-
-/* Box de datos de la canción */
 .detalle-box.datos-cancion {
   background: #181818;
   color: #fff;
@@ -444,7 +540,6 @@
   justify-content: flex-start;
 }
 
-/* Box de tareas */
 .detalle-box.tareas {
   background: #181818;
   color: #fff;
@@ -456,8 +551,6 @@
   flex-direction: column;
 }
 
-
-/* Botones al final y centrados */
 .tarea-actions {
   display: flex;
   justify-content: center;
@@ -465,7 +558,9 @@
   margin-top: auto; /* empuja hacia abajo */
 }
 
-/* Campos de detalle con máximo 2 líneas y puntos suspensivos */
+/* ==========================================================================
+   8. ENLACES DINÁMICOS DE TEXTOS (CLAMPS INTERNOS Y SCROLLBARS DE DETALLES)
+   ========================================================================== */
 .detalle-box span {
   display: -webkit-box;
   -webkit-line-clamp: 2;       /* máximo 2 líneas */
@@ -476,7 +571,6 @@
   word-break: break-word;
 }
 
-/* Al pasar el mouse: quitar límite y permitir scroll */
 .detalle-box span:hover {
   -webkit-line-clamp: unset;   /* se quita el límite */
   text-overflow: unset;        /* se quitan los 3 puntos */
@@ -484,20 +578,19 @@
   max-height: 2.3em;           /* mantiene altura fija */
 }
 
-/* Scroll elegante */
 .detalle-box span::-webkit-scrollbar {
   width: 6px;
 }
+
 .detalle-box span::-webkit-scrollbar-thumb {
   background: #555;
   border-radius: 4px;
 }
+
 .detalle-box span::-webkit-scrollbar-thumb:hover {
   background: #888;
 }
 
-
-/* Cada fila de detalle */
 .detalle-row {
   display: grid;
   grid-template-columns: 80px 1fr; /* etiqueta fija, valor flexible */
@@ -505,14 +598,12 @@
   margin: 4px 0;
 }
 
-/* Etiqueta pequeña y en negrita */
 .detalle-label {
   font-size: 11px;
   font-weight: bold;
   padding-top: 2px;
 }
 
-/* Valor más grande, con clamp */
 .detalle-value {
   font-size: 14px;
   line-height: 1.4;
@@ -527,7 +618,6 @@
   color: #fff;
 }
 
-/* Hover: scroll dentro de la misma altura */
 .detalle-value:hover {
   -webkit-line-clamp: unset;
   text-overflow: unset;
@@ -536,14 +626,15 @@
   min-height: 2.4em;
 }
 
-
 .detalle-value::-webkit-scrollbar {
   width: 6px;
 }
+
 .detalle-value::-webkit-scrollbar-thumb {
   background: #555;
   border-radius: 4px;
 }
+
 .detalle-value::-webkit-scrollbar-thumb:hover {
   background: #888;
 }
@@ -552,6 +643,7 @@
   width: 100%;
   margin-top: 10px; /* un poco de espacio respecto a la fila anterior */
 }
+
 .col-estado {
   width: 130px
 }
@@ -583,26 +675,186 @@
   font-size: 14px;
 }
 
+/* ==========================================================================
+   9. COMPORTAMIENTO GENERAL DE CONTENEDORES SCROLL Y BOTONERAS
+   ========================================================================== */
 .scroll-container::-webkit-scrollbar {
   width: 8px;
 }
+
 .scroll-container::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .scroll-container::-webkit-scrollbar-thumb {
   background-color: transparent;
   border-radius: 0;
 }
+
 .scroll-container:hover::-webkit-scrollbar {
   background-color: transparent;
 }
+
 .scroll-container:hover::-webkit-scrollbar-thumb {
   background-color: #555;
 }
+
 .scroll-container:hover::-webkit-scrollbar-track {
   background-color: transparent;
 }
+
 .scroll-container:hover::-webkit-scrollbar-thumb:hover {
   background-color: #888;
 }
 
+.btn-actualizar {
+  margin-bottom: 50px;
+}
+
+/* ==========================================================================
+   10. MODAL DE GÉNERO (GESTIÓN OSCURA PREMIUM Y OVERLAYS)
+   ========================================================================== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(3px);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content-genero {
+  width: 300px; /* ancho suficiente para que todo quede en una línea */
+  animation: fadeInModal 0.2s ease-out;
+}
+
+.modal-close-x {
+  cursor: pointer;
+  font-size: 24px;
+  color: #666;
+  transition: color 0.2s;
+}
+
+.modal-close-x:hover {
+  color: #fff;
+}
+
+.modal-lista-scroll {
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 1.5rem;
+  padding-right: 4px;
+}
+
+.modal-genero-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #222;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #2a2a2a;
+}
+
+.modal-genero-row span {
+  font-size: 14px;
+  color: #fff;
+}
+
+.btn-eliminar-tag {
+  cursor: pointer;
+  color: #ff4d4d;
+  font-weight: bold;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-eliminar-tag:hover {
+  background: rgba(255, 77, 77, 0.15);
+}
+
+.modal-input-group {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.modal-input-group input {
+  background: #000;
+  border: 1px solid #333;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  flex-grow: 1;
+  outline: none;
+}
+
+.modal-input-group input:focus {
+  border-color: #535353;
+}
+
+/* ==========================================================================
+   11. ACTUALIZACIÓN ESTÍTICA MODAL TAREAS (HERENCIA MODAL GÉNERO)
+   ========================================================================== */
+
+/* 1. Ajustar el contenedor del modal a un ancho más estilizado y añadir el borde sutil */
+#modal-tarea .modal-content {
+  width: 520px; /* Mantiene el ancho para el grid, pero con la estética nueva */
+  background: #181818;
+  border: 1px solid #2a2a2a;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  animation: fadeInModal 0.2s ease-out;
+}
+
+/* 2. Transformar el título a estilo Géneros (Letra verde, más pequeño, sin fondo pesado) */
+#modal-tarea .modal-content h2 {
+  background: transparent; /* Eliminamos el degradado gris pesado */
+  color: #1db954;          /* Verde Spotify */
+  font-size: 25px;         /* Más pequeño y elegante */
+  font-weight: bold;
+  padding: 0 0 10px 0;
+  margin-bottom: 15px;
+}
+
+#modal-tarea .modal-close-x {
+  font-weight: bold; 
+  font-size: 24px;
+  margin-top: -40px; /* Ajuste milimétrico para que quede centrado con el texto del título */
+}
+
+/* 5. Inputs y Selects con fondo negro puro y bordes finos (#000) */
+
+#modal-tarea .campo-dinamico input{
+  background: #000 !important;
+  border: 1px solid #333 !important;
+  color: #fff !important;
+  border-radius: 4px;
+  padding: 6px 8px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+/* Enfoque de inputs estilo género */
+#modal-tarea .campo-dinamico input:focus {
+  border-color: #535353 !important;
+}
+
+/* Ajuste para el texto de la flecha y posición actual */
+#modal-tarea .col-posicion span {
+  color: #b3b3b3;
+  font-weight: bold;
+}
+#modal-tarea .col-posicion-actual {
+  color: #fff;
+}

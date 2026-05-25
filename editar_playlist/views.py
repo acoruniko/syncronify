@@ -1,26 +1,22 @@
 # editar_playlist/views.py
-import json
-from datetime import datetime
-from django.shortcuts import render, get_object_or_404
+import json, requests
+from datetime import datetime, timedelta
+from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponseRedirect
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST, require_GET
 from django.core.serializers.json import DjangoJSONEncoder
 from usuarios.models import Usuario
 from django.contrib import messages
-from datetime import timedelta
 from conexion.auth import build_authorize_url
 from conexion.models import CredencialesSpotify
 from conexion.services import get_spotify_token, check_credentials, check_rate_limit, handle_429
-from playlists.models import Playlist, Cancion, PlaylistCancion, Tarea
-import requests
-from django.views.decorators.http import require_GET
-import json
-from conexion.services import check_rate_limit
-from django.shortcuts import redirect
-import requests
+from playlists.models import Playlist, Cancion, PlaylistCancion, Tarea, Genero
 from django.db import transaction
-from playlists.services import procesar_consecuencias_tarea_eliminada
+from playlists.services import procesar_consecuencias_tarea_eliminada, conciliar_playlist_con_spotify
+
+# Asegúrate de importar tus modelos Playlist y Genero
 
 
 def mensajes_bar(request):
@@ -85,6 +81,11 @@ def editar_playlist_home(request, playlist_id):
         seconds_remaining = check_rate_limit(request, cred, show_message=False) or 0
         rate_limited = seconds_remaining > 0
 
+    # 🚀 NUEVO: Cargar catálogo general y mapear los géneros asignados a la playlist
+    generos = Genero.objects.all().order_by('nombre')
+    # Extraemos un set plano de IDs para evaluar con el tag {% if ... in ... %} de Django en el template
+    generos_asignados_ids = set(playlist.generos.values_list('id_genero', flat=True))
+
     return render(request, "editar_playlist/editar_playlist.html", {
         "playlist": playlist,
         "canciones": canciones,
@@ -92,6 +93,8 @@ def editar_playlist_home(request, playlist_id):
         "rate_limited": rate_limited,
         "seconds_remaining": seconds_remaining,
         "total_con_pendientes": total_con_pendientes,
+        "generos": generos,                         # 🚀 Enviado al template
+        "generos_asignados_ids": generos_asignados_ids, # 🚀 Enviado al template
     })
 
 
@@ -276,21 +279,46 @@ def agregar_cancion(request, playlist_id):
             messages.error(request, "Datos incompletos para agregar canción")
             return JsonResponse({"ok": False, "error": "Datos incompletos"}, status=400)
         
-        # 1. Extraer track ID
+        # 1. Extraer track ID (Blindado contra URLs incorrectas del entorno)
         track_id = None
         if url:
-            # Intento 1: URL estándar de Spotify (ej: .../track/ID?...)
-            if "/track/" in url:
-                track_id = url.split("/track/")[1].split("?")[0]
-            # Intento 2: URL de tu entorno (ej: .../spotify.com/ID)
-            elif "spotify.com/" in url:
-                track_id = url.split("spotify.com/")[1].split("/")[0].split("?")[0]
-            # Intento 3: Es solo el ID puro
+            url_clean = url.strip()
+            
+            # Detectar si es una URL de tu entorno simulado
+            if "googleusercontent.com/spotify.com/" in url_clean:
+                # Validamos estrictamente los formatos permitidos para tu entorno (ej: /1, /2, /3, /4)
+                # Si viene con un prefijo no soportado (como /5), lo rechazamos de inmediato
+                formatos_validos = [
+                    "spotify.com/ID",
+                    "spotify.com/",
+                    "https://api.spotify.com/v1/tracks/",
+                    "https://open.spotify.com/intl-es/track/2302lUwfZ4S4dVyPOCDFnQ"
+                ]
+                
+                # Buscamos con cuál coincide
+                formato_encontrado = next((f for f in formatos_validos if f in url_clean), None)
+                
+                if formato_encontrado:
+                    track_id = url_clean.split(formato_encontrado)[1].split("/")[0].split("?")[0]
+                else:
+                    messages.error(request, "El formato de URL del entorno de pruebas no está soportado.")
+                    return JsonResponse({"ok": False, "error": "Formato de entorno inválido"}, status=400)
+            
+            # Si es una URL estándar de producción de Spotify
+            elif "/track/" in url_clean:
+                track_id = url_clean.split("/track/")[1].split("?")[0]
+            
+            # Si no tiene barras ni dominios, asumimos que metió el ID limpio
+            elif "/" not in url_clean:
+                track_id = url_clean
+            
+            # Cualquier otra URL loca que no cumpla los criterios
             else:
-                track_id = url.strip()
+                messages.error(request, "La URL proporcionada no corresponde a un formato válido.")
+                return JsonResponse({"ok": False, "error": "Estructura de URL desconocida"}, status=400)
 
         if not track_id:
-            messages.error(request, "La URL de la canción no es válida")
+            messages.error(request, "No se pudo extraer un ID válido de la canción.")
             return JsonResponse({"ok": False, "error": "URL inválida"}, status=400)
 
         # 2. VALIDACIÓN DE DUPLICADOS (La regla de oro)
@@ -538,4 +566,130 @@ def eliminar_tarea(request, playlist_id, tarea_id):
         "requiere_reload": requiere_reload
     })
 
+@login_required
+@transaction.non_atomic_requests  # Evitamos amarrar transacciones DB durante la petición HTTP a Spotify
+def actualizar_playlist_spotify_view(request, playlist_id):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "Método no permitido"}, status=405)
 
+    try:
+        # 1. Parsear cuerpo de la petición
+        data = json.loads(request.body)
+        forzar = data.get("forzar", False)
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse({"ok": False, "error": "Cuerpo de petición inválido"}, status=400)
+
+    # 2. Checkeos de Seguridad y Autenticación de Spotify
+    cred = check_credentials(request)
+    if isinstance(cred, HttpResponseRedirect):
+        return JsonResponse({
+            "ok": False,
+            "requires_auth": True,
+            "auth_url": build_authorize_url(state=f"editar_playlist:{playlist_id}")
+        }, status=401)
+
+    seconds_remaining = check_rate_limit(request, cred)
+    if seconds_remaining:
+        return JsonResponse({
+            "ok": False,
+            "error": f"Rate limit activo. Espera {seconds_remaining} segundos."
+        }, status=429)
+
+    # 3. Obtener Token Válido
+    token = get_spotify_token()
+    if not token:
+        return JsonResponse({"ok": False, "error": "No se pudo obtener el token de acceso a Spotify"}, status=401)
+
+    # 4. Invocar el servicio de conciliación por conjuntos
+    resultado = conciliar_playlist_con_spotify(
+        id_playlist_local=playlist_id,
+        forzar_actualizacion=forzar,
+        spotify_token=token,
+        request_user=request.user
+    )
+
+    # =====================================================================
+    # 📝 GESTIÓN DE CONTROL DE FEEDBACK Y MENSAJES PARA LA INTERFAZ
+    # =====================================================================
+    if resultado["ok"]:
+        if resultado["cambios_detectados"]:
+            # Hubo mutaciones físicas: Pasamos el log detallado con saltos de línea <br>
+            messages.success(request, resultado["mensaje"])
+        else:
+            # 🎯 CORRECCIÓN: Respetamos el mensaje descriptivo del servicio 
+            # que ya incluye el nombre de la playlist y la advertencia de los 2 minutos
+            messages.info(request, resultado["mensaje"])
+    else:
+        # El servicio falló: Pasamos el error técnico real para no andar adivinando en el log
+        messages.error(request, resultado.get("error", "Error desconocido en la conciliación."))
+
+    return JsonResponse(resultado)
+
+@login_required
+def crear_genero_ajax(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            nombre_genero = data.get("nombre", "").strip()
+            
+            if not nombre_genero:
+                return JsonResponse({"ok": False, "error": "El nombre no puede estar vacío."})
+            
+            # Verificamos duplicados de forma limpia
+            genero_obj, creado = Genero.objects.get_or_create(nombre=nombre_genero)
+            
+            return JsonResponse({
+                "ok": True, 
+                "id_genero": genero_obj.id_genero, 
+                "nombre": genero_obj.nombre,
+                "nuevo": creado
+            })
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": str(e)})
+    return JsonResponse({"ok": False, "error": "Método no permitido."})
+
+@login_required
+def eliminar_genero_ajax(request, id_genero):
+    if request.method == "POST":
+        try:
+            # Al tener ON DELETE CASCADE en la BD, MySQL limpia la tabla 'playlist_genero' automáticamente.
+            Genero.objects.filter(id_genero=id_genero).delete()
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": str(e)})
+    return JsonResponse({"ok": False, "error": "Método no permitido."})
+
+
+@login_required
+@require_POST
+def asociar_genero_ajax(request):
+    playlist_id = request.POST.get('playlist_id')
+    genero_id = request.POST.get('genero_id')
+    
+    if not playlist_id or not genero_id:
+        return JsonResponse({'ok': False, 'error': 'Faltan parámetros requeridos.'}, status=400)
+        
+    playlist = get_object_or_404(Playlist, id_playlist=playlist_id)
+    genero = get_object_or_404(Genero, id_genero=genero_id)
+    
+    # Django maneja la duplicidad internamente, .add() es seguro
+    playlist.generos.add(genero)
+    
+    return JsonResponse({'ok': True, 'msg': f'Género {genero.nombre} asociado con éxito.'})
+
+
+@login_required
+@require_POST
+def desasociar_genero_ajax(request):
+    playlist_id = request.POST.get('playlist_id')
+    genero_id = request.POST.get('genero_id')
+    
+    if not playlist_id or not genero_id:
+        return JsonResponse({'ok': False, 'error': 'Faltan parámetros requeridos.'}, status=400)
+        
+    playlist = get_object_or_404(Playlist, id_playlist=playlist_id)
+    genero = get_object_or_404(Genero, id_genero=genero_id)
+    
+    playlist.generos.remove(genero)
+    
+    return JsonResponse({'ok': True, 'msg': f'Género {genero.nombre} desasociado con éxito.'})

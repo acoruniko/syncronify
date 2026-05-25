@@ -42,12 +42,11 @@
             <span class="app-name">Syncronify</span>
         </div>
 
-
         <div class="topbar-center">
             {% if messages %}
-            <div class="messages-bar">
+            <div class="messages-bar scroll-container">
                 {% for message in messages %}
-                    <div class="message {{ message.tags }}">{{ message }}</div>
+                    <div class="message {{ message.tags }}">{{ message|linebreaksbr }}</div>
                 {% endfor %}
             </div>
             {% endif %}

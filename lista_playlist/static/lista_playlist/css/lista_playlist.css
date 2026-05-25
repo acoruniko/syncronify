@@ -141,3 +141,133 @@
 .scroll-container:hover::-webkit-scrollbar-thumb:hover {
   background-color: #888;
 }
+
+/* Modificación de la cabecera izquierda para apilar los bloques verticales */
+
+
+/* Contenedor especial de las dos pestañas superiores (Todos / Búsqueda) */
+.filter-specials-container {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #2a2a2a;
+  padding-bottom: 12px;
+}
+
+/* Estilo para los tags especiales superiores */
+.genero-toggle-item.special-tag {
+  background: #202020;
+  border: 1px solid #333;
+}
+
+/* Input de Texto para buscar canciones */
+.filter-search-input {
+  width: 100%;
+  background: #282828;
+  border: 1px solid #404040;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #fff;
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.filter-search-input:focus {
+  border-color: #1db954;
+}
+
+/* Asegura que el contenedor de la columna izquierda se alinee correctamente */
+.left-column-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+
+/* ============================================
+   2. CONTENEDOR DE GÉNEROS (Caja Izquierda)
+   ============================================ */
+.super-bloque {
+  width: 300px;         
+  background: #181818;
+  border-radius: 12px;
+  padding: 15px;
+  border: 1px solid #2a2a2a;
+  box-sizing: border-box;
+
+  /* 🚀 EL TRUCO DE CONTROL AXIAL: */
+  margin-left: -100px;   /* 👈 Empuja el bloque de géneros hacia la izquierda del layout */
+  position: relative;   /* Asegura que el renderizado respete el desplazamiento */
+  z-index: 2;
+}
+
+.super-bloque-title {
+  color: #1db954;
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 1.5px;
+  padding-bottom: 5px;
+  line-height: 0.9;
+}
+
+.super-bloque-footer {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.generos-list-vertical {
+  display: grid;                        /* 👈 Cambiado de flex a grid */
+  grid-template-columns: repeat(2, 1fr); /* 👈 2 columnas idénticas y simétricas */
+  gap: 8px;                             /* Espaciado uniforme entre celdas */
+  max-height: 205px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 1rem;                  /* Empuja el botón hacia abajo para que respire */
+}
+
+
+/* Tags / Toggles de género */
+.genero-toggle-item {
+  width: 100%;                          /* Fuerza al tag a ocupar toda su celda */
+  text-align: center;                   /* Centra el texto del género */
+  padding: 8px 6px;                     /* Ajuste de aire interno para modo columna */
+  background: #282828;
+  border: 1px solid transparent;
+  border-radius: 6px;                   /* Un radio ligeramente menor se alinea mejor en cuadrícula */
+  cursor: pointer;
+  user-select: none;
+  color: #b3b3b3;
+  font-size: 13px;
+  font-weight: bold;
+  white-space: nowrap;                  /* Evita que el texto se rompa en dos líneas */
+  overflow: hidden;
+  text-overflow: ellipsis;              /* Si el nombre es muy largo, mete puntos suspensivos */
+  transition: all 0.2s ease;
+}
+
+.genero-toggle-item:hover {
+  background: #3e3e3e;
+  color: #fff;
+}
+
+/* Estado seleccionado (Verde Spotify) */
+.genero-toggle-item.selected {
+  background: #1db954;
+  color: #000;
+  font-weight: bold;
+}
+
+.no-generos-msg {
+  color: #727272;
+  font-size: 13px;
+  font-style: italic;
+  margin: 10px 0;
+  grid-column: 1 / -1; 
+  text-align: center; 
+  width: 100%;
+}

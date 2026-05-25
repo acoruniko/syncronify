@@ -125,6 +125,8 @@
   white-space: normal;      /* permite saltos de línea */
   word-break: break-word;   /* evita overflow en mensajes largos */
   overflow: hidden;
+  display: block;
+  word-break: break-word;
 }
 
 /* ===========================

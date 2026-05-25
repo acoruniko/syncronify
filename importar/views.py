@@ -6,8 +6,11 @@ from datetime import timedelta
 from conexion.auth import build_authorize_url
 from conexion.models import CredencialesSpotify
 from conexion.services import get_spotify_token, check_credentials, check_rate_limit, handle_429
-from playlists.models import Playlist, Cancion, PlaylistCancion
+from playlists.models import Playlist, Cancion, PlaylistCancion, Genero, PlaylistGenero
 from django.http import HttpResponseRedirect
+from django.db import transaction
+from django.http import JsonResponse
+import json
 import requests
 
 @login_required
@@ -17,7 +20,6 @@ def importar_playlist_confirmar(request, playlist_id):
         cred = check_credentials(request)
         if isinstance(cred, HttpResponseRedirect):
             return redirect(build_authorize_url(state="importar_playlists"))
-
 
         # 2. Rate limit
         seconds_remaining = check_rate_limit(request, cred)
@@ -32,6 +34,9 @@ def importar_playlist_confirmar(request, playlist_id):
         if Playlist.objects.filter(id_spotify=playlist_id).exists():
             messages.warning(request, f"La playlist ya fue importada previamente.")
             return redirect(f"/importar/playlists/?page={current_page}")
+        
+        generos_ids = request.GET.get("generos", "")
+        lista_generos_ids = [int(x) for x in generos_ids.split(",") if x.isdigit()]
 
         # 5. Obtener canciones
         canciones_guardadas = []
@@ -68,7 +73,7 @@ def importar_playlist_confirmar(request, playlist_id):
 
             url = data.get("next")
 
-        # 6. Guardar playlist
+        # 6. Guardar playlist (Aquí capturamos la metadata completa)
         playlist_resp = requests.get(
             f"https://api.spotify.com/v1/playlists/{playlist_id}",
             headers=headers,
@@ -82,27 +87,40 @@ def importar_playlist_confirmar(request, playlist_id):
         playlist_data = playlist_resp.json()
 
         descripcion = playlist_data.get("description", "")[:1000] if playlist_data.get("description") else ""
+        
+        # 👉 CAPTURAMOS EL SNAPSHOT_ID INICIAL
+        snapshot_id_inicial = playlist_data.get("snapshot_id")
 
-        playlist_obj = Playlist.objects.create(
-            id_spotify=playlist_data["id"],
-            nombre=playlist_data["name"],
-            descripcion=descripcion,
-            propietario=playlist_data["owner"]["display_name"],
-            total_canciones=playlist_data["tracks"]["total"],
-            cover_url=playlist_data["images"][0]["url"] if playlist_data.get("images") else None,
-            usuario_importo=request.user
-        )
-
-        # 7. Guardar relaciones
-        for idx, (cancion_obj, item) in enumerate(canciones_guardadas, start=1):
-            PlaylistCancion.objects.create(
-                playlist=playlist_obj,
-                cancion=cancion_obj,
-                posicion=idx,
-                fecha_agregado=item.get("added_at"),
-                agregado_por=item["added_by"]["id"] if item.get("added_by") else None,
-                estado="activo"
+        # Usamos una transacción atómica para asegurar que la playlist y sus tracks se guarden en bloque
+        with transaction.atomic():
+            playlist_obj = Playlist.objects.create(
+                id_spotify=playlist_data["id"],
+                nombre=playlist_data["name"],
+                descripcion=descripcion,
+                propietario=playlist_data["owner"]["display_name"],
+                total_canciones=playlist_data["tracks"]["total"],
+                cover_url=playlist_data["images"][0]["url"] if playlist_data.get("images") else None,
+                usuario_importo=request.user,
+                snapshot_id=snapshot_id_inicial  # 💾 ALMACENADO EN BASE DE DATOS
             )
+
+            # 7. Guardar relaciones (Metido dentro del bloque atómico por seguridad elemental)
+            for idx, (cancion_obj, item) in enumerate(canciones_guardadas, start=1):
+                PlaylistCancion.objects.create(
+                    playlist=playlist_obj,
+                    cancion=cancion_obj,
+                    posicion=idx,
+                    fecha_agregado=item.get("added_at"),
+                    agregado_por=item["added_by"]["id"] if item.get("added_by") else None,
+                    estado="activo"
+                )
+                
+            # 🚀 ASOCIAR GÉNEROS SELECCIONADOS (Dentro de la misma transacción atómica)
+            for g_id in lista_generos_ids:
+                PlaylistGenero.objects.create(
+                    playlist_id=playlist_obj.pk,  # 🧠 Usamos el atributo nativo de Django '_id'
+                    genero_id=g_id                # 🧠 Usamos el atributo nativo de Django '_id'
+                )
 
         # 8. Mensaje de éxito
         messages.success(request, f"La playlist '{playlist_obj.nombre}' fue importada con éxito.")
@@ -143,14 +161,53 @@ def importar_playlists(request):
         data = resp.json()
         playlists = data.get("items", [])
 
+        # 🚀 EXTRAEMOS TODOS LOS GÉNEROS DISPONIBLES DE TU TABLA MANUAL
+        generos_disponibles = Genero.objects.all().order_by('nombre')
+
         return render(request, "importar/importar_playlist.html", {
             "playlists": playlists,
             "page_number": page_number,
             "has_next": data.get("next") is not None,
             "rate_limited": False,
             "seconds_remaining": 0,
+            "generos": generos_disponibles, # 👈 Enviamos los géneros a la plantilla
         })
 
     except Exception as e:
         messages.error(request, f"Error al importar playlists: {str(e)}")
         return redirect("lista_playlist_home")
+    
+
+@login_required
+def crear_genero_ajax(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            nombre_genero = data.get("nombre", "").strip()
+            
+            if not nombre_genero:
+                return JsonResponse({"ok": False, "error": "El nombre no puede estar vacío."})
+            
+            # Verificamos duplicados de forma limpia
+            genero_obj, creado = Genero.objects.get_or_create(nombre=nombre_genero)
+            
+            return JsonResponse({
+                "ok": True, 
+                "id_genero": genero_obj.id_genero, 
+                "nombre": genero_obj.nombre,
+                "nuevo": creado
+            })
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": str(e)})
+    return JsonResponse({"ok": False, "error": "Método no permitido."})
+
+@login_required
+def eliminar_genero_ajax(request, id_genero):
+    if request.method == "POST":
+        try:
+            # Al tener ON DELETE CASCADE en la BD, MySQL limpia la tabla 'playlist_genero' automáticamente.
+            Genero.objects.filter(id_genero=id_genero).delete()
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": str(e)})
+    return JsonResponse({"ok": False, "error": "Método no permitido."})
