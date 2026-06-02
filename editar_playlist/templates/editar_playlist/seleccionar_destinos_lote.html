@@ -1,0 +1,463 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Seleccionar Destinos Lote | Syncronify{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'editar_playlist/css/editar_playlist.css' %}">
+<style>
+  /* 🎛️ RECALIBRACIÓN DE MAPA DE DISEÑO PARA PLAYLISTS */
+  .grid-destinos-playlist {
+    display: grid;
+    grid-template-columns: 1fr 1.6fr; /* Izquierda compacta (Carrito), Derecha dominante (Buscador) */
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  /* Selector de géneros horizontal elástico (4 a 6 por fila) */
+  .generos-grid-compacto {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+    max-height: 120px;
+    overflow-y: auto;
+    padding-right: 5px;
+    margin-top: 10px;
+  }
+
+  .genero-toggle-item {
+    padding: 6px 10px;
+    background: #282828;
+    color: #b3b3b3;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    text-align: center;
+    cursor: pointer;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .genero-toggle-item.selected, .genero-toggle-item.special-tag.selected {
+    background: #1db954;
+    color: #fff;
+    font-weight: bold;
+  }
+
+  /* Sobrescribimos .playlist-row de tu CSS para adaptarlo al flujo de esta grilla */
+  .playlist-row {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background: #181818;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .playlist-row:hover {
+    background: #282828;
+  }
+
+  .playlist-cover {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+
+  .playlist-info h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #fff;
+  }
+
+  .playlist-info p {
+    margin: 2px 0 0 0;
+    font-size: 0.75rem;
+    color: #b3b3b3;
+  }
+
+  .btn-remove-playlist {
+    color: #eb5757;
+    font-size: 1.3rem;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 10px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="mensaje-superior" style="display:none;"></div>
+
+<div class="lote-container-master">
+  
+  <div class="lote-header-block-playlist">
+    <h1>Agregar Múltiple — Destino</h1>
+  </div>
+
+  <div class="lote-layout-grid lote-playlists"> 
+    
+    <div class="lote-col-izquierda lote-playlists">
+      <div class="super-bloque-title" style="margin-bottom: 10px;">
+        Playlists Destino Seleccionadas (<span id="destino-contador">0</span>)
+      </div>
+
+      <div id="contenedor-destinos-dinamico" class="songs-list scroll-container" style="height: 480px;">
+        <p class="empty" id="destino-vacio-msg">No has seleccionado ninguna playlist de destino. Haz clic en las de la derecha.</p>
+      </div>
+    </div>
+
+    <div class="lote-col-derecha" style="display: flex; flex-direction: column; gap: 15px;">
+      
+      <div class="detalle-box lote-playlists" style="padding: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1rem;">Filtrar por Género</h3>
+          <span id="generos-contador" style="font-size: 0.75rem; color: #b3b3b3;"></span>
+        </div>
+
+        <div class="filter-specials-container" style="display: flex; gap: 8px; margin-top: 8px;">
+          <div class="genero-toggle-item special-tag selected" id="tag-filtro-todos" onclick="seleccionarFiltroTodos()">
+            Todos
+          </div>
+          <div class="genero-toggle-item special-tag" id="tag-filtro-busqueda" onclick="toggleFiltroBusquedaInput()">
+            Búsqueda
+          </div>
+        </div>
+
+        <div id="generos-list-container" class="generos-grid-compacto lote-playlists scroll-container">
+          
+          <div id="wrapper-busqueda-cancion" style="display: none; width: 100%;">
+            <input type="text" id="input-busqueda-cancion" class="filter-search-input" 
+                  placeholder="Escribe playlist o propietario..." onkeyup="ejecutarFiltroTexto(this.value)" style="width: 100%;">
+          </div>
+
+          {% for genero in generos %}
+            <div class="genero-toggle-item genero-filtro-tag" data-id="{{ genero.id_genero }}" onclick="toggleGeneroFiltro(this)">
+              {{ genero.nombre }}
+            </div>
+          {% empty %}
+            <p id="no-generos-msg" class="no-generos-msg" style="font-size: 0.8rem;">No hay géneros creados.</p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="detalle-box" style="flex-grow: 1; display: flex; flex-direction: column; min-height: 280px;">
+        <h3 style="margin-bottom: 10px;">Catálogo de Playlists</h3>
+        <div id="contenedor-playlists-dinamico" class="scroll-container" style="overflow-y: auto; flex-grow: 1; height: 240px;">
+          {% include "lista_playlist/partials/playlist_rows.html" %}
+        </div>
+      </div>
+    </div>
+
+    <div class="lote-col-derecha-acciones">
+        <div class="action-buttons-vertical">
+          <button class="action-btn primary" id="btn-crear-tareas-lote" disabled >
+            Crear Tareas
+          </button>
+          <button class="action-btn" onclick="history.back()">
+            Atrás
+          </button>
+        </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 📥 Recuperamos el lote de canciones guardado en la pantalla anterior
+        const datosRaw = localStorage.getItem('syncronify_lote_canciones');
+        
+        if (!datosRaw) {
+            // Control de errores de navegación si intentan entrar directo a la URL sin armar un lote
+            console.warn("No se detectó ningún lote de canciones activo en memoria.");
+            return;
+        }
+
+        const cancionesCargadas = JSON.parse(datosRaw);
+        console.log("🚀 Conexión Exitosa. Datos del lote listos para procesar:", cancionesCargadas);
+    });
+  // 💾 Estado global en memoria para las playlists destino
+  let lotePlaylists = [];
+  
+  // Variables globales de control para la API de filtrado
+  let generosFiltroSeleccionados = new Set();
+  let textoBusquedaActual = "";
+
+  /**
+  * Captura la playlist seleccionada en el catálogo y la inyecta al carrito de destinos.
+  * Aplica el motor de burbujas nativas clonadas para control de duplicados.
+  */
+  function selectPlaylist(elementoRow) {
+      const idPlaylist = parseInt(elementoRow.dataset.id);
+      const nombrePlaylist = elementoRow.dataset.name;
+      const imgNode = elementoRow.querySelector('.playlist-cover');
+      const coverUrl = imgNode ? imgNode.src : '';
+      const infoText = elementoRow.querySelector('.playlist-info p').textContent;
+
+      // 🚀 CONTROL ANTI-DUPLICADOS CON GLOBOS DE ALERTA CLONADOS
+      const yaExiste = lotePlaylists.some(p => p.id_playlist === idPlaylist);
+      if (yaExiste) {
+          if (!elementoRow) return;
+
+          // Evitamos duplicar la burbuja si spamean el click en la misma o múltiples playlists
+          if (document.getElementById('burbuja-duplicado-playlist')) return;
+
+          // 📐 OBTENER COORDENADAS EXACTAS DE LA FILA EN LA PANTALLA
+          const rect = elementoRow.getBoundingClientRect();
+
+          // Creamos la burbuja nativa adaptada al contexto de playlists
+          const burbuja = document.createElement('div');
+          burbuja.id = 'burbuja-duplicado-playlist';
+          burbuja.className = 'burbuja-alerta-local'; // Reutiliza tu clase CSS global de alertas
+          burbuja.innerText = 'Selecciona otra playlist. Esta ya se encuentra asignada como destino.';
+
+          // Inyectamos el soporte para el borde de la flecha
+          const bordeFlecha = document.createElement('div');
+          bordeFlecha.className = 'burbuja-alerta-local-borde-flecha';
+          burbuja.appendChild(bordeFlecha);
+
+          // 🎯 CLAVAMOS LA POSICIÓN FIXED: Justo debajo de la playlist cliqueada
+          burbuja.style.position = 'fixed';
+          burbuja.style.left = `${rect.left + 20}px`; 
+          burbuja.style.top = `${rect.bottom}px`; 
+          burbuja.style.zIndex = '9999'; // Aseguramos que flote sobre cualquier scroll contenedor
+
+          // 🚀 INYECCIÓN AL BODY: Rompe restricciones de overflow del catálogo local
+          document.body.appendChild(burbuja);
+
+          // Disparo de animación CSS idéntica
+          requestAnimationFrame(() => {
+              burbuja.classList.add('show');
+          });
+
+          // Auto-destrucción limpia a los 2.5 segundos
+          setTimeout(() => {
+              burbuja.classList.remove('show');
+              setTimeout(() => {
+                  burbuja.remove();
+              }, 100);
+          }, 2500);
+
+          return; // Bloqueo estricto de inserción
+      }
+
+      // Feedback de éxito visual si la playlist es nueva en el lote
+      elementoRow.classList.add('seleccionado-temp');
+      setTimeout(() => elementoRow.classList.remove('seleccionado-temp'), 400);
+
+      // Procedemos con la inyección limpia en el DOM del carrito izquierdo
+      const contenedor = document.getElementById('contenedor-destinos-dinamico');
+      const msgVacio = document.getElementById('destino-vacio-msg');
+      if (msgVacio) msgVacio.remove();
+
+      const row = document.createElement('div');
+      row.className = 'playlist-row';
+      row.dataset.lotePlaylistId = idPlaylist;
+      row.style.cursor = 'default';
+      row.style.justifyContent = 'space-between';
+
+      row.innerHTML = `
+        <div style="display: flex; align-items: center; overflow: hidden; gap: 5px;">
+          <img src="${coverUrl}" class="playlist-cover">
+          <div class="playlist-info" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <h3>${nombrePlaylist}</h3>
+            <p>${infoText}</p>
+          </div>
+        </div>
+        <div class="btn-remove-playlist" onclick="removerPlaylistDelLote(${idPlaylist})" style="cursor: pointer;">×</div>
+      `;
+
+      contenedor.appendChild(row);
+
+      // Guardamos la metadata estructural en caliente
+      lotePlaylists.push({
+          id_playlist: idPlaylist,
+          nombre: nombrePlaylist
+      });
+
+      actualizarContadorDestinos();
+  }
+
+  /**
+   * Saca una playlist del lote y restaura el estado
+   */
+  function removerPlaylistDelLote(idPlaylist) {
+      const fila = document.querySelector(`[data-lote-playlist-id="${idPlaylist}"]`);
+      if (fila) fila.remove();
+
+      lotePlaylists = lotePlaylists.filter(p => p.id_playlist !== idPlaylist);
+      actualizarContadorDestinos();
+
+      const contenedor = document.getElementById('contenedor-destinos-dinamico');
+      if (contenedor && contenedor.children.length === 0) {
+          contenedor.innerHTML = `<p class="empty" id="destino-vacio-msg">No has seleccionado ninguna playlist de destino. Haz clic en las de la derecha.</p>`;
+      }
+  }
+
+  /**
+   * Gestiona el habilitado del botón maestro y actualiza el contador
+   */
+  function actualizarContadorDestinos() {
+      const contador = document.getElementById('destino-contador');
+      const btnCrear = document.getElementById('btn-crear-tareas-lote');
+      
+      if (contador) contador.textContent = lotePlaylists.length;
+      if (btnCrear) {
+          // El botón solo se activa si hay al menos una playlist destino seleccionada
+          btnCrear.disabled = lotePlaylists.length === 0;
+      }
+  }
+
+  // ==========================================================================
+  // 🎛️ MOTOR DE FILTRADO ASÍNCRONO REUTILIZANDO TU ENDPOINT
+  // ==========================================================================
+  function ejecutarFiltradoGlobal() {
+      const contenedor = document.getElementById('contenedor-playlists-dinamico');
+      if (!contenedor) return;
+
+      const queryGeneros = Array.from(generosFiltroSeleccionados).join(',');
+      const queryTexto = encodeURIComponent(textoBusquedaActual);
+
+      // Consumimos exactamente tu backend asíncrono indexado de MySQL
+      const url = `/lista_playlist/ajax/filtrar/?generos=${queryGeneros}&q=${queryTexto}`;
+
+      fetch(url)
+          .then(response => {
+              if (!response.ok) throw new Error("Error en el motor de filtrado del servidor.");
+              return response.text();
+          })
+          .then(htmlParcial => {
+              contenedor.innerHTML = htmlParcial;
+          })
+          .catch(error => {
+              console.error("Error ejecutando fetch asíncrono de playlists:", error);
+          });
+  }
+
+  function seleccionarFiltroTodos() {
+      const btnTodos = document.getElementById('tag-filtro-todos');
+      if (btnTodos.classList.contains('selected')) return;
+
+      btnTodos.classList.add('selected');
+      generosFiltroSeleccionados.clear();
+      
+      document.querySelectorAll('.genero-filtro-tag').forEach(tag => tag.classList.remove('selected'));
+      actualizarContadorGeneros();
+      ejecutarFiltradoGlobal();
+  }
+
+  function toggleGeneroFiltro(el) {
+      const generoId = parseInt(el.dataset.id);
+      const btnTodos = document.getElementById('tag-filtro-todos');
+
+      if (generosFiltroSeleccionados.has(generoId)) {
+          generosFiltroSeleccionados.delete(generoId);
+          el.classList.remove('selected');
+      } else {
+          generosFiltroSeleccionados.add(generoId);
+          el.classList.add('selected');
+      }
+
+      if (generosFiltroSeleccionados.size > 0) {
+          btnTodos.classList.remove('selected');
+      } else {
+          btnTodos.classList.add('selected');
+      }
+
+      actualizarContadorGeneros();
+      ejecutarFiltradoGlobal();
+  }
+
+  function ejecutarFiltroTexto(cadena) {
+      textoBusquedaActual = cadena;
+      ejecutarFiltradoGlobal();
+  }
+
+  function toggleFiltroBusquedaInput() {
+      const btnBusqueda = document.getElementById('tag-filtro-busqueda');
+      const wrapperInput = document.getElementById('wrapper-busqueda-cancion');
+      const inputTexto = document.getElementById('input-busqueda-cancion');
+
+      if (wrapperInput.style.display === 'none') {
+          wrapperInput.style.display = 'block';
+          btnBusqueda.classList.add('selected');
+          inputTexto.focus();
+      } else {
+          wrapperInput.style.display = 'none';
+          btnBusqueda.classList.remove('selected');
+          inputTexto.value = '';
+          textoBusquedaActual = '';
+          ejecutarFiltradoGlobal();
+      }
+  }
+
+  function actualizarContadorGeneros() {
+      const contadorSpan = document.getElementById('generos-contador');
+      if (!contadorSpan) return;
+
+      const seleccionados = generosFiltroSeleccionados.size;
+      const btnTodos = document.getElementById('tag-filtro-todos');
+
+      if (btnTodos.classList.contains('selected') || seleccionados === 0) {
+          contadorSpan.textContent = '';
+      } else {
+          contadorSpan.textContent = `(${seleccionados} seleccionado${seleccionados > 1 ? 's' : ''})`;
+      }
+  }
+
+  async function procesarYEnviarLoteFinal() {
+    const btnCrear = document.getElementById('btn-crear-tareas-lote');
+    if (btnCrear) btnCrear.disabled = true;
+
+    // 📥 Recuperamos las canciones de LocalStorage guardadas en la Pantalla 1
+    const cancionesRaw = localStorage.getItem('syncronify_lote_canciones');
+    if (!cancionesRaw || lotePlaylists.length === 0) {
+        alert("Estructura de datos vacía. Asegúrate de tener canciones y destinos seleccionados.");
+        if (btnCrear) btnCrear.disabled = false;
+        return;
+    }
+
+    const payload = {
+        canciones: JSON.parse(cancionesRaw),
+        playlists: lotePlaylists // Array global controlado por selectPlaylist()
+    };
+
+    try {
+        const response = await fetch("{% url 'planificar_tareas_lote_ajax' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie('csrftoken') // Reutiliza tu lector de cookies
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            // 🧹 Limpiamos el localStorage del cliente para que no queden residuos
+            localStorage.removeItem('syncronify_lote_canciones');
+            
+            // 🚀 Redirección de éxito al Home / Panel de Tareas para que lea los mensajes flash
+            window.location.href = "{% url 'lista_playlist_home' %}";
+        } else {
+            alert("Error del servidor: " + data.error);
+            if (btnCrear) btnCrear.disabled = false;
+        }
+    } catch (error) {
+        console.error("Error en la petición de procesamiento masivo:", error);
+        if (btnCrear) btnCrear.disabled = false;
+    }
+}
+
+// Vinculación directa al botón mecánico
+document.getElementById('btn-crear-tareas-lote').addEventListener('click', procesarYEnviarLoteFinal);
+</script>
+{% endblock %}

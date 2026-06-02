@@ -12,7 +12,9 @@ class Playlist(models.Model):
     total_canciones = models.IntegerField(blank=True, null=True)
     cover_url = models.TextField(blank=True, null=True)
     fecha_importacion = models.DateTimeField(auto_now_add=True)
-    snapshot_id = models.CharField(max_length=255, null=True, blank=True)
+
+    snapshot_ahorita = models.CharField(max_length=255, db_column='snapshot_ahorita', blank=True, null=True)
+    snapshot_anterior = models.CharField(max_length=255, db_column='snapshot_anterior', blank=True, null=True)
 
     usuario_importo = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -102,6 +104,7 @@ class Tarea(models.Model):
     url_cancion = models.TextField(null=True, blank=True)  
     posicion = models.IntegerField(null=True, blank=True)
     posicion_anterior = models.IntegerField(null=True, blank=True)
+    id_lote = models.UUIDField(null=True, blank=True, db_index=True)
 
     def __str__(self):
         return f"{self.tipo} - rel:{self.relacion_id} - {self.estado}"

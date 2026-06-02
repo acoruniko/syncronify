@@ -153,16 +153,20 @@
 </div>
 
 <div id="modal-tarea" class="modal hidden">
-  <div class="modal-content">
+  <div class="modal-content" id="modal-content-tarea">
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <h2>Programar Tarea</h2>
-      <span id="btn-cerrar-x-tarea" class="modal-close-x">&times;</span>
+      <span id="btn-cerrar-x-tarea" class="modal-close-x">×</span>
     </div>
+    
     <div class="modal-header">
       <span class="col-accion">Acción</span>
-      <span class="col-posicion">Posición<br>
-        <small style="font-size: 0.8em; color: #b3b3b3; font-weight: normal;">(Actual - Nueva)</small></span>
+      <span class="col-posicion">
+        <span>Posición</span>
+        <small style="font-size: 0.8em; color: #b3b3b3; font-weight: normal;">(Actual - Nueva)</small>
+      </span>
       <span class="col-fecha">Fecha de Ejecución</span>
+      <span class="col-proyeccion" id="th-proyeccion">Días Proyección</span>
     </div>
 
     <div class="modal-row">
@@ -174,14 +178,20 @@
         </select>
       </div>
 
-      <div class="col-posicion" style="display: flex; gap: 5px; align-items: center;">
-        <span id="label-posicion-actual" class="col-posicion-actual" title="Posición actual">--</span>
-        <span>→</span>
-        <select id="posicion"></select>
+      <div class="col-posicion">
+        <div class="col-posicion-inputs">
+          <span id="label-posicion-actual" class="col-posicion-actual" title="Posición actual">--</span>
+          <span>→</span>
+          <select id="posicion"></select>
+        </div>
       </div>
 
       <div class="col-fecha">
         <input type="date" id="fecha-ejecucion">
+      </div>
+
+      <div class="col-proyeccion" id="td-proyeccion">
+        <input type="text" id="dias-proyeccion" value="-">  
       </div>
     </div>
 
@@ -263,11 +273,87 @@
             const fecha = document.getElementById('fecha-ejecucion').value;
             const posicion = document.getElementById('posicion').value;
 
+            // 🎯 1. VALIDACIÓN EN CALIENTE: Solo si estamos agregando una canción nueva
             if (modoAgregarCancion) {
+                const inputUrl = document.getElementById('url-cancion');
+                const inputDias = document.getElementById('dias-proyeccion');
+
+                if (inputUrl) {
+                    // 🧼 Limpiamos los espacios igual que en tus pruebas
+                    const urlClean = inputUrl.value.replace(/\s+/g, '').trim();
+                    
+                    // 🧪 IMPRESIÓN DE PRUEBA EN TU LISTENER REAL
+                    console.log("=== DIAGNÓSTICO EN EL LISTENER ===");
+                    console.log("URL Limpia leída por JS:", urlClean);
+                    console.log("==================================");
+
+                    // Aplicamos la lógica elástica fiel a tu View de Django (sin expresiones regulares rígidas)
+                    // 🎯 VALIDACIÓN ELÁSTICA, SEGURA Y SIN BUGS:
+                    let trackId = null;
+
+                    if (urlClean.includes("open.spotify.com")) {
+                        if (urlClean.includes("/track/")) {
+                            // Cortamos en /track/ y nos quedamos con lo que está a la derecha
+                            const despuesTrack = urlClean.split("/track/")[1];
+                            if (despuesTrack) {
+                                // Limpiamos parámetros de tracking (?si=...) o subrutas extras si las hubiera
+                                trackId = despuesTrack.split("?")[0].split("/")[0];
+                            }
+                        }
+                    } else if (!urlClean.includes("/")) {
+                        // Si el usuario pega el ID puro, obligamos a que cumpla el formato exacto de Spotify (alfanumérico de 22 a 23 caracteres)
+                        const esIdValidoSpotify = /^[a-zA-Z0-9]{22,23}$/.test(urlClean);
+                        if (esIdValidoSpotify) {
+                            trackId = urlClean;
+                        }
+                    }
+
+                    // Ahora evaluamos con total certeza
+                    if (urlClean === '') {
+                        inputUrl.setCustomValidity("La URL de la canción no puede estar vacía.");
+                    } else if (!trackId) {
+                        inputUrl.setCustomValidity("URL o ID incorrecto. Debe ser un enlace válido de canción de Spotify.");
+                    } else {
+                        inputUrl.setCustomValidity(""); // ¡VÁLIDO DE VERDAD!
+                    }
+
+                    // Si no es válido, dispara el globo flotante nativo y frena la ejecución
+                    if (!inputUrl.checkValidity()) {
+                        inputUrl.reportValidity();
+                        return; 
+                    }
+                }
+
+                if (inputDias) {
+                  const diasValor = inputDias.value.trim();
+
+                  // 🎯 REGLA: Si está vacío o tiene el guion por defecto, es completamente válido y pasa.
+                  if (diasValor === '' || diasValor === '-') {
+                      inputDias.setCustomValidity("");
+                  } else {
+                      // Si el usuario escribió algo, validamos que sea solo dígitos y mayor o igual a 1
+                      const esNumeroValido = /^\d+$/.test(diasValor) && parseInt(diasValor, 10) >= 1;
+
+                      if (!esNumeroValido) {
+                          inputDias.setCustomValidity("Días de proyección inválido. Debe ser un número entero mayor o igual a 1.");
+                      } else {
+                          inputDias.setCustomValidity(""); // Válido
+                      }
+                  }
+
+                  // Si no es válido, dispara el globo flotante y frena
+                  if (!inputDias.checkValidity()) {
+                      inputDias.reportValidity();
+                      return; 
+                  }
+                }
+
+                // Si pasó ambos checkValidity, procedemos con tu flujo original
                 await guardarAgregarCancion();
                 return;
             }
 
+            // --- FLUJO ESTÁNDAR PARA OTRAS TAREAS (Sin cambios) ---
             const formData = new FormData();
             formData.append('relacion_id', relacionSeleccionadaId);
             formData.append('tipo', tipo);
@@ -295,8 +381,18 @@
                 console.error("Error de red al crear la tarea", e);
             }
         });
-    }
+      }
 
+
+    const inputDiasProyeccion = document.getElementById('dias-proyeccion');
+      if (inputDiasProyeccion) {
+          // Escucha cuando el usuario escribe o pega texto
+          inputDiasProyeccion.addEventListener('input', (e) => {
+              // Reemplaza cualquier cosa que NO sea un número entero (\D) por un string vacío
+              e.target.value = e.target.value.replace(/\D/g, '');
+          });
+      }
+      
     // Listener: Eliminar Tarea desde Panel de Detalles
     const btnEliminarTarea = document.getElementById('btn-eliminar-tarea');
     if (btnEliminarTarea) {
@@ -534,6 +630,8 @@
   function abrirModalTarea() {
     const inputFecha = document.getElementById('fecha-ejecucion');
     const tipoSelect = document.getElementById('tipo-tarea');
+
+    modoAgregarCancion = false;
     
     resetearValidacionFechas();
     let fechaMinima = inputFecha.min; 
@@ -578,6 +676,7 @@
     tipoSelect.value = 'Posicionar';
     actualizarCamposPorTipo();
     poblarPosiciones(totalCanciones);
+    alternarColumnaProyeccion(false);
 
     document.getElementById('modal-tarea').classList.remove('hidden');
   }
@@ -589,6 +688,9 @@
   function cerrarModalTarea() {
     document.getElementById('modal-tarea').classList.add('hidden');
     modoAgregarCancion = false; 
+    alternarColumnaProyeccion(false); // Oculta la columna y resetea a '-'
+    const colExtra = document.getElementById("col-extra");
+    if (colExtra) colExtra.innerHTML = '';
   }
 
   function actualizarCamposPorTipo() {
@@ -740,6 +842,63 @@
     if (el) seleccionarCancion(el);
   }
 
+  // Función para controlar el comportamiento y visibilidad de la columna de proyección
+  function alternarColumnaProyeccion(mostrar) {
+    const modalContent = document.getElementById('modal-content-tarea');
+    const inputDias = document.getElementById('dias-proyeccion');
+
+    if (!modalContent) return;
+
+    if (mostrar) {
+        // 🚀 Agrega la clase que ensancha el modal a 780px y muestra la 4ta columna
+        modalContent.classList.add('modo-agregar-cancion');
+        
+        if (inputDias) {
+            inputDias.value = '-';
+            inputDias.onfocus = function() { if(this.value === '-') this.value = ''; };
+            inputDias.onblur = function() { if(this.value.trim() === '') this.value = '-'; };
+        }
+    } else {
+        // 🚀 Remueve la clase regresando el modal a sus 500px compactos originales
+        modalContent.classList.remove('modo-agregar-cancion');
+        if (inputDias) inputDias.value = '-';
+    }
+  }
+
+  function validarCamposModalNativos() {
+    // 🚨 LOG DE ENTRADA: Si esto no sale, el problema es el EventListener del botón Confirmar
+    console.log("🚀 ¡La función validarCamposModalNativos() SE ESTÁ EJECUTANDO!");
+
+    const inputUrl = document.getElementById('url-cancion');
+    const inputDias = document.getElementById('dias-proyeccion');
+    
+    // Diagnóstico del DOM
+    console.log("🔍 Estado del DOM -> inputUrl:", inputUrl, "| inputDias:", inputDias);
+    
+    // 1️⃣ VALIDACIÓN: URL de Spotify (Si existe en el DOM)
+    if (inputUrl) {
+        const urlValorOriginal = inputUrl.value;
+        const urlValorLimpio = urlValorOriginal.replace(/\s+/g, '').trim();
+
+        inputUrl.setCustomValidity("Revisando consola... Mira el log para ver el texto real.");
+        inputUrl.reportValidity();
+        return false; // Frenamos el flujo
+    }
+
+    if (inputDias) {
+        const diasValor = inputDias.value.trim();
+        const esNumeroValido = /^\d+$/.test(diasValor) && parseInt(diasValor, 10) >= 1;
+
+        if (diasValor === '-' || diasValor === '') {
+            inputDias.setCustomValidity("");
+        } else if (!esNumeroValido) {
+            inputDias.setCustomValidity("Días de proyección inválido. Debe ser un número entero mayor o igual a 1.");
+        } else {
+            inputDias.setCustomValidity("");
+        }
+    }
+  }
+
   function abrirModalAgregarCancion() {
     modoAgregarCancion = true;
     resetearValidacionFechas();
@@ -753,14 +912,19 @@
     const labelPos = document.getElementById("label-posicion-actual");
     if (labelPos) labelPos.textContent = "—";
     
-    const colExtra = document.getElementById("col-extra");
-
     poblarPosiciones(totalCanciones, true);
 
+    // Activamos la columna a la derecha de la fecha
+    alternarColumnaProyeccion(true);
+
+    // El col-extra ahora solo renderiza el input de la URL abajo ocupando todo el ancho
+    const colExtra = document.getElementById("col-extra");
     if (colExtra) {
         colExtra.innerHTML = `
-          <label for="url-cancion" class="label-url">URL de la canción</label>
-          <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/..." class="input-url">
+          <div class="campo-url">
+            <label for="url-cancion" class="label-url">URL de la canción</label>
+            <input type="text" id="url-cancion" placeholder="https://open.spotify.com/track/..." class="input-url">
+          </div>
         `;
     }
 
@@ -771,11 +935,17 @@
     const url = document.getElementById("url-cancion").value;
     const posicion = document.getElementById("posicion").value;
     const fecha = document.getElementById("fecha-ejecucion").value;
+    
+    // 🎯 CORRECCIÓN: Leemos el valor del input del DOM
+    const inputDias = document.getElementById("dias-proyeccion");
+    const diasProyeccion = inputDias ? inputDias.value.trim() : "-";
 
     const formData = new FormData();
     formData.append("url", url);
     formData.append("posicion", posicion);
     formData.append("fecha", fecha);
+    // 🎯 CORRECCIÓN: Adjuntamos los días de proyección al payload que viaja a Django
+    formData.append("dias_proyeccion", diasProyeccion); 
 
     try {
         const resp = await fetch(`/editar_playlist/agregar_cancion/${playlistId}/`, {

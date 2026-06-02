@@ -56,11 +56,29 @@
     </div>
 
     <div class="action-panel">
+
+      <div class="action-buttons-vertical super-bloque lote-playlist">
+        <div class="super-bloque-title">
+          Tareas Múltiples
+        </div>
+        <button type="button" class="action-btn primary" onclick="window.location.href='{% url 'agregar_tareas_multiples_home' %}'">
+          Agregar Múltiple
+        </button>
+
+        <button type="button" class="action-btn primary" onclick="window.location.href='{% url 'posicionar_tareas_multiples_home' %}'">
+          Posicionar Múltiple
+        </button>
+
+        <button type="button" class="action-btn primary" onclick="window.location.href='{% url 'eliminar_tareas_multiples_home' %}'">
+          Eliminar Múltiple
+        </button>
+
+      </div>
       <div class="action-buttons-vertical">
         <button id="btn-editar" class="action-btn" disabled>Editar</button>
         <button id="btn-eliminar" class="action-btn" disabled>Eliminar</button>
       </div>
-      <div class="action-buttons-vertical general-actions">
+      <div class="action-buttons-vertical general-actions">        
         <button type="button" class="action-btn primary" onclick="window.location.href='{% url 'sincronizar_playlist_home' %}'">
           Sincronizar con Spotify
         </button>

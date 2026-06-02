@@ -1,0 +1,663 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Eliminar Múltiples Canciones | Syncronify{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'editar_playlist/css/editar_playlist.css' %}">
+<style>
+  /* 🎛️ RECALIBRACIÓN DE MAPA DE DISEÑO PARA PLAYLISTS */
+  .grid-destinos-playlist {
+    display: grid;
+    grid-template-columns: 1fr 1.6fr; /* Izquierda compacta (Carrito), Derecha dominante (Buscador) */
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  /* Selector de géneros horizontal elástico (4 a 6 por fila) */
+  .generos-grid-compacto {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+    max-height: 120px;
+    overflow-y: auto;
+    padding-right: 5px;
+    margin-top: 10px;
+  }
+
+  .genero-toggle-item {
+    padding: 6px 10px;
+    background: #282828;
+    color: #b3b3b3;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    text-align: center;
+    cursor: pointer;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .genero-toggle-item.selected, .genero-toggle-item.special-tag.selected {
+    background: #1db954;
+    color: #fff;
+    font-weight: bold;
+  }
+
+  /* Sobrescribimos .playlist-row de tu CSS para adaptarlo al flujo de esta grilla */
+  .playlist-row {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background: #181818;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .playlist-row:hover {
+    background: #282828;
+  }
+
+  .playlist-cover {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+
+  .playlist-info h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #fff;
+  }
+
+  .playlist-info p {
+    margin: 2px 0 0 0;
+    font-size: 0.75rem;
+    color: #b3b3b3;
+  }
+
+  .btn-remove-playlist {
+    color: #eb5757;
+    font-size: 1.3rem;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 10px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="mensaje-superior" style="display:none;"></div>
+
+<div class="lote-container-master">
+  
+  <div class="lote-header-block-playlist lote-eliminar">
+    <h1>Eliminar Múltiple</h1>
+  </div>
+
+  <div class="lote-layout-grid lote-playlists lote-playlist-eliminar"> 
+    
+    <div class="lote-col-izquierda lote-playlists">
+      <div class="super-bloque-title" style="margin-bottom: 10px;">
+        Canciones a Procesar en el Lote (<span id="eliminar-contador">0</span>)
+      </div>
+
+      <div hidden>
+        <label for="fecha-global-lote" style="font-size: 0.85rem; color: #b3b3b3; font-weight: 500; margin: 0; user-select: none;">
+          Fecha Global de Ejecución
+        </label>
+        <input type="date" id="fecha-global-lote" class="filter-search-input" onchange="aplicarFechaGlobal(this.value)" 
+               style="margin-right: 25px;">
+      </div>
+
+      <div class="lote-songs-header">
+        <span style="flex: 3.1;">Canción / Artista / Playlist</span>
+        <span style="flex: 1;">Playlist</span>
+        <span style="flex: 1; text-align: center;">Fecha Ejecución</span>
+    
+        <span style="width: 40px;"></span> 
+      </div>
+
+      <div id="contenedor-eliminar-dinamico" class="songs-list scroll-container" style="height: 420px;">
+        <p class="empty" id="eliminar-vacio-msg">No has seleccionado ninguna canción para eliminar. Navega por las playlists de la derecha.</p>
+      </div>
+    </div>
+
+    <div class="lote-col-derecha" style="display: flex; flex-direction: column; gap: 15px;">
+      
+      <div id="bloque-filtros-playlists" class="detalle-box lote-playlists" style="padding: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1rem;">Filtrar por Género</h3>
+          <span id="generos-contador" style="font-size: 0.75rem; color: #b3b3b3;"></span>
+        </div>
+
+        <div class="filter-specials-container" style="display: flex; gap: 8px; margin-top: 8px;">
+          <div class="genero-toggle-item special-tag selected" id="tag-filtro-todos" onclick="seleccionarFiltroTodos()">
+            Todos
+          </div>
+          <div class="genero-toggle-item special-tag" id="tag-filtro-busqueda" onclick="toggleFiltroBusquedaInput()">
+            Búsqueda
+          </div>
+        </div>
+
+        <div id="generos-list-container" class="generos-grid-compacto lote-playlists scroll-container">
+          <div id="wrapper-busqueda-cancion" style="display: none; width: 100%;">
+            <input type="text" id="input-busqueda-cancion" class="filter-search-input" 
+                   placeholder="Escribe playlist o propietario..." onkeyup="ejecutarFiltroTexto(this.value)" style="width: 100%;">
+          </div>
+
+          {% for genero in generos %}
+            <div class="genero-toggle-item genero-filtro-tag" data-id="{{ genero.id_genero }}" onclick="toggleGeneroFiltro(this)">
+              {{ genero.nombre }}
+            </div>
+          {% empty %}
+            <p id="no-generos-msg" class="no-generos-msg" style="font-size: 0.8rem;">No hay géneros creados.</p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="detalle-box" style="flex-grow: 1; display: flex; flex-direction: column; min-height: 280px;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <h3 id="titulo-navegador-derecho" style="margin: 0;">Catálogo de Playlists</h3>
+        </div>
+
+        <div id="contenedor-playlists-dinamico" class="scroll-container" style="overflow-y: auto; flex-grow: 1; height: 240px;">
+          {% include "lista_playlist/partials/playlist_rows.html" %}
+        </div>
+      </div>
+    </div>
+
+    <div class="lote-col-derecha-acciones">
+        <div class="action-buttons-vertical">
+            <button class="action-btn primary" id="btn-procesar-eliminacion-lote" onclick="despacharLoteEliminacionServer()" disabled>
+            Crear Tareas
+            </button>
+            <button id="btn-volver-a-playlists" class="action-btn" onclick="renderizarEstadoAPlaylists()" disabled>
+            Volver a Playlists
+            </button>
+          <button id="btn-navegacion-atras" class="action-btn" onclick="history.back()">
+            Atrás
+          </button>
+        </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // Cesta global de ítems a eliminar: [{"id_relacion": X, "titulo": Y, "playlist_origen": Z}]
+  let cestaEliminar = [];
+  
+  // Variables estructurales para los filtros asíncronos del Estado A
+  let generosFiltroSeleccionados = new Set();
+  let textoBusquedaActual = "";
+  
+  // Cache en memoria del catálogo inicial (HTML puro renderizado por Django) para no re-consultar al regresar
+  let htmlCatalogoPlaylistsCache = "";
+
+  document.addEventListener('DOMContentLoaded', function() {
+      // Almacenamos el estado inicial de las filas del catálogo en caché
+      const contenedor = document.getElementById('contenedor-playlists-dinamico');
+      if (contenedor) {
+          htmlCatalogoPlaylistsCache = contenedor.innerHTML;
+          inyectarInteraccionClickPlaylists();
+      }
+      
+      // Inicializar la fecha global con el día de mañana para prevenir ejecuciones en el pasado
+      const hoy = new Date();
+      hoy.setDate(hoy.getDate() + 1);
+      document.getElementById('fecha-global-lote').value = hoy.toISOString().split('T')[0];
+  });
+
+  /**
+   * Vincula dinámicamente el comportamiento de click a las filas del partial de playlists.
+   * Modifica temporalmente la función que venía por defecto para que responda a nuestro flujo.
+   */
+  function inyectarInteraccionClickPlaylists() {
+      const filas = document.querySelectorAll('#contenedor-playlists-dinamico .playlist-row');
+      filas.forEach(fila => {
+          fila.removeAttribute('onclick'); // Desvinculamos el link unitario clásico
+          fila.style.cursor = 'pointer';
+          fila.addEventListener('click', function(e) {
+              const playlistId = this.dataset.id;
+              if (playlistId) cargarCancionesDePlaylist(playlistId);
+          });
+      });
+  }
+
+  /**
+   * ESTADO B: Consulta al servidor las canciones de la playlist y muta el contenedor derecho
+   */
+  function cargarCancionesDePlaylist(playlistId) {
+      const contenedor = document.getElementById('contenedor-playlists-dinamico');
+      const titulo = document.getElementById('titulo-navegador-derecho');
+      const bloqueFiltros = document.getElementById('bloque-filtros-playlists');
+      let btnVolver = document.getElementById('btn-volver-a-playlists');
+
+      contenedor.innerHTML = '<p class="empty">Cargando tracks indexados...</p>';
+
+      fetch(`/editar_playlist/eliminar-multiple/obtener-canciones/${playlistId}/`)
+          .then(response => response.json())
+          .then(data => {
+              if (!data.ok) throw new Error(data.error);
+
+                // MUTA EL ESTADO DE LA UI
+                titulo.textContent = `${data.playlist_nombre}`;
+                bloqueFiltros.style.display = 'none'; 
+
+                // 🔓 ACTIVAMOS EL BOTÓN INTERNO DE RETORNO Y GUARDAMOS LA PLAYLIST CONTEXTUAL
+                const btnVolver = document.getElementById('btn-volver-a-playlists');
+                if (btnVolver) {
+                    btnVolver.disabled = false;
+                    btnVolver.dataset.playlistIdActiva = playlistId; // <-- Guardamos la referencia limpia
+                }
+
+                // 🔒 BLOQUEAMOS EL BOTÓN ATRÁS GENERAL PARA EVITAR ERRORES DE NAVEGACIÓN
+                const btnAtras = document.getElementById('btn-navegacion-atras');
+                if (btnAtras) btnAtras.disabled = true;
+
+              if (data.canciones.length === 0) {
+                  contenedor.innerHTML = '<p class="empty">Esta playlist no contiene canciones activas o pendientes.</p>';
+                  return;
+              }
+
+              contenedor.innerHTML = '';
+              data.canciones.forEach(track => {
+                  const row = document.createElement('div');
+                  row.className = 'playlist-row';
+                  row.style.cursor = 'pointer';
+                  row.style.justifyContent = 'space-between';
+                  
+                  // Metadata indexada para recuperación en click
+                  row.dataset.idRelacion = track.id_relacion;
+                  row.dataset.titulo = track.titulo;
+                  row.dataset.artistas = track.artistas;
+                  row.dataset.coverUrl = track.cover_url || '';
+                  row.dataset.playlistOrigen = track.playlist_origen_nombre;
+                  row.dataset.eliminacionProgramada = track.eliminacion_programada;
+
+                  row.innerHTML = `
+                      <div style="display: flex; align-items: center; overflow: hidden; gap: 5px; width: 85%;">
+                          <img src="${track.cover_url || '/static/img/default_cover.png'}" class="playlist-cover">
+                          <div class="playlist-info" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                              <h3>${track.titulo}</h3>
+                              <p>${track.artistas} ${track.eliminacion_programada ? '<b style="color:#ff5555; margin-left:5px;">(Eliminación Pendiente)</b>' : ''}</p>
+                          </div>
+                      </div>
+                      <div style="font-weight: bold; color: #1db954; font-size: 1.2rem; padding-right: 10px;">+</div>
+                  `;
+
+                  row.addEventListener('click', function() {
+                      agregarCancionACesta(this);
+                  });
+
+                  contenedor.appendChild(row);
+              });
+          })
+          .catch(error => {
+              console.error("Error cargando canciones:", error);
+              contenedor.innerHTML = '<p class="empty" style="color:#ff5555;">No se pudieron recuperar los datos de la playlist.</p>';
+          });
+  }
+
+  /**
+   * Restaura el selector derecho al Catálogo de Playlists (Estado A)
+   */
+    function renderizarEstadoAPlaylists() {
+        document.getElementById('titulo-navegador-derecho').textContent = "Catálogo de Playlists";
+        document.getElementById('bloque-filtros-playlists').style.display = 'block';
+
+        // 🔒 DESHABILITAMOS EL BOTÓN INTERNO DE RETORNO NÚEVAMENTE
+        const btnVolver = document.getElementById('btn-volver-a-playlists');
+        if (btnVolver) btnVolver.disabled = true;
+
+        // 🔓 LIBERAMOS EL BOTÓN ATRÁS GENERAL (Ya estás en la raíz del módulo)
+        const btnAtras = document.getElementById('btn-navegacion-atras');
+        if (btnAtras) btnAtras.disabled = false;
+
+        const contenedor = document.getElementById('contenedor-playlists-dinamico');
+        contenedor.innerHTML = htmlCatalogoPlaylistsCache;
+        inyectarInteraccionClickPlaylists();
+        
+        if (generosFiltroSeleccionados.size > 0 || textoBusquedaActual !== "") {
+            ejecutarFiltradoGlobal();
+        }
+    }
+
+  /**
+   * Inserta un track en la cesta de eliminación izquierda aplicando tu motor de burbujas nativas
+   */
+  function agregarCancionACesta(elementoRow) {
+      const idRelacion = parseInt(elementoRow.dataset.idRelacion);
+      const titulo = elementoRow.dataset.titulo;
+      const artistas = elementoRow.dataset.artistas;
+      const coverUrl = elementoRow.dataset.coverUrl;
+      const playlistOrigen = elementoRow.dataset.playlistOrigen;
+      const yaProgramadaBaseDatos = elementoRow.dataset.eliminacionProgramada === "true";
+
+      // 🚀 1. CONTROL POR BURBUJA HTML5 SI YA TIENE UN BORRADO PROGRAMADO EN EL BACKEND
+      if (yaProgramadaBaseDatos) {
+          dispararBurbujaInformativa(elementoRow, 'Esta canción ya tiene una tarea de eliminación pendiente en el servidor.');
+          return;
+      }
+
+      // 🚀 2. CONTROL ANTI-DUPLICADOS EN LA CESTA ACTUAL
+      const yaEnCesta = cestaEliminar.some(item => item.id_relacion === idRelacion);
+      if (yaEnCesta) {
+          dispararBurbujaInformativa(elementoRow, 'Esta canción ya está añadida en el lote de eliminación izquierdo.');
+          return;
+      }
+
+      // Feedback visual de inserción exitosa
+      elementoRow.classList.add('seleccionado-temp');
+      setTimeout(() => elementoRow.classList.remove('seleccionado-temp'), 300);
+
+      const contenedor = document.getElementById('contenedor-eliminar-dinamico');
+      const msgVacio = document.getElementById('eliminar-vacio-msg');
+      if (msgVacio) msgVacio.remove();
+
+      const fechaGlobal = document.getElementById('fecha-global-lote').value;
+
+      const row = document.createElement('div');
+      row.className = 'playlist-row';
+      row.dataset.cestaRelacionId = idRelacion;
+      row.style.cursor = 'default';
+      row.style.justifyContent = 'space-between';
+      row.style.padding = '8px';
+
+      row.innerHTML = `
+        <div style="display: flex; align-items: center; overflow: hidden; gap: 8px; width: 65%; padding-right: 10px;">
+          <img src="${coverUrl || '/static/img/default_cover.png'}" class="playlist-cover" style="width:36px; height:36px;">
+          <div class="playlist-info" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <h3 style="font-size:0.85rem;">${titulo}</h3>
+            <p style="font-size:0.75rem; color:#b3b3b3;">${artistas}</p>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; overflow: hidden; gap: 8px; width: 30%; padding-right: 10px;">
+          <div class="playlist-info" style="overflow: hidden; font-size:0.75rem;font-weight: bold;">
+            <span>${playlistOrigen}</span></p>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <input type="date" class="filter-search-input fecha-item-cesta" value="${fechaGlobal}" min="${fechaGlobal}"  style="padding:2px 5px; font-size:0.75rem;">
+          <div class="btn-remove-playlist" onclick="removerCancionDeCesta(${idRelacion})" style="cursor: pointer; font-size:1.2rem; color:#ff5555;">×</div>
+        </div>
+        <div style="flex: 1; text-align: center;">
+      `;
+
+      contenedor.appendChild(row);
+
+      // Almacenamos metadata estructural completa (Incluyendo el ID de la Playlist)
+      cestaEliminar.push({
+          id_relacion: idRelacion,
+          titulo: titulo,
+          // Capturamos el id de la playlist que guardamos previamente en el flujo anterior
+          playlist_id: parseInt(document.getElementById('btn-volver-a-playlists').dataset.playlistIdActiva || document.querySelector('[data-id-playlist]')?.dataset.idPlaylist || elementoRow.dataset.idPlaylist || 0) 
+      });
+
+      actualizarContadorEliminar();
+  }
+
+  /**
+   * Saca un elemento de la cesta izquierda
+   */
+  function removerCancionDeCesta(idRelacion) {
+      const fila = document.querySelector(`[data-cesta-relacion-id="${idRelacion}"]`);
+      if (fila) fila.remove();
+
+      cestaEliminar = cestaEliminar.filter(item => item.id_relacion !== idRelacion);
+      actualizarContadorEliminar();
+
+      const contenedor = document.getElementById('contenedor-eliminar-dinamico');
+      if (contenedor && contenedor.children.length === 0) {
+          contenedor.innerHTML = `<p class="empty" id="eliminar-vacio-msg">No has seleccionado ninguna canción para eliminar. Navega por las playlists de la derecha.</p>`;
+      }
+  }
+
+  /**
+   * Clonación de tu motor de burbujas flotantes adaptado al contexto de borrado masivo
+   */
+  function dispararBurbujaInformativa(elementoRow, mensajeTexto) {
+      if (!elementoRow || document.getElementById('burbuja-duplicado-eliminar')) return;
+
+      const rect = elementoRow.getBoundingClientRect();
+      const burbuja = document.createElement('div');
+      burbuja.id = 'burbuja-duplicado-eliminar';
+      burbuja.className = 'burbuja-alerta-local'; 
+      burbuja.innerText = mensajeTexto;
+
+      const bordeFlecha = document.createElement('div');
+      bordeFlecha.className = 'burbuja-alerta-local-borde-flecha';
+      burbuja.appendChild(bordeFlecha);
+
+      burbuja.style.position = 'fixed';
+      burbuja.style.left = `${rect.left + 15}px`; 
+      burbuja.style.top = `${rect.bottom}px`; 
+      burbuja.style.zIndex = '9999';
+
+      document.body.appendChild(burbuja);
+
+      requestAnimationFrame(() => { burbuja.classList.add('show'); });
+      setTimeout(() => {
+          burbuja.classList.remove('show');
+          setTimeout(() => { burbuja.remove(); }, 100);
+      }, 2500);
+  }
+
+  /**
+   * Sincroniza la fecha global sobre todos los inputs hijos de la cesta izquierda
+   */
+  function aplicarFechaGlobal(nuevaFecha) {
+      document.querySelectorAll('.fecha-item-cesta').forEach(input => {
+          input.value = nuevaFecha;
+      });
+  }
+
+  function actualizarContadorEliminar() {
+      const contador = document.getElementById('eliminar-contador');
+      const btnProcesar = document.getElementById('btn-procesar-eliminacion-lote');
+      
+      if (contador) contador.textContent = cestaEliminar.length;
+      if (btnProcesar) btnProcesar.disabled = cestaEliminar.length === 0;
+  }
+
+  // ==========================================================================
+  // 🎛️ ADAPTACIÓN DEL MOTOR DE FILTRADO ASÍNCRONO ORIGINAL DE TU VIEWS.PY
+  // ==========================================================================
+  function ejecutarFiltradoGlobal() {
+      const contenedor = document.getElementById('contenedor-playlists-dinamico');
+      if (!contenedor) return;
+
+      const queryGeneros = Array.from(generosFiltroSeleccionados).join(',');
+      const queryTexto = encodeURIComponent(textoBusquedaActual);
+      const url = `/lista_playlist/ajax/filtrar/?generos=${queryGeneros}&q=${queryTexto}`;
+
+      fetch(url)
+          .then(response => {
+              if (!response.ok) throw new Error("Fallo en el motor de filtrado del servidor.");
+              return response.text();
+          })
+          .then(htmlParcial => {
+              contenedor.innerHTML = htmlParcial;
+              htmlCatalogoPlaylistsCache = htmlParcial; // Sincronizamos la cache por si entran a ver canciones
+              inyectarInteraccionClickPlaylists();
+          })
+          .catch(error => { console.error("Error en fetch de playlists:", error); });
+  }
+
+  function seleccionarFiltroTodos() {
+      const btnTodos = document.getElementById('tag-filtro-todos');
+      if (btnTodos.classList.contains('selected')) return;
+
+      btnTodos.classList.add('selected');
+      generosFiltroSeleccionados.clear();
+      
+      document.querySelectorAll('.genero-filtro-tag').forEach(tag => tag.classList.remove('selected'));
+      actualizarContadorGeneros();
+      ejecutarFiltradoGlobal();
+  }
+
+  function toggleGeneroFiltro(el) {
+      const generoId = parseInt(el.dataset.id);
+      const btnTodos = document.getElementById('tag-filtro-todos');
+
+      if (generosFiltroSeleccionados.has(generoId)) {
+          generosFiltroSeleccionados.delete(generoId);
+          el.classList.remove('selected');
+      } else {
+          generosFiltroSeleccionados.add(generoId);
+          el.classList.add('selected');
+      }
+
+      if (generosFiltroSeleccionados.size > 0) {
+          btnTodos.classList.remove('selected');
+      } else {
+          btnTodos.classList.add('selected');
+      }
+
+      actualizarContadorGeneros();
+      ejecutarFiltradoGlobal();
+  }
+
+  function ejecutarFiltroTexto(cadena) {
+      textoBusquedaActual = cadena;
+      ejecutarFiltradoGlobal();
+  }
+
+  function toggleFiltroBusquedaInput() {
+      const btnBusqueda = document.getElementById('tag-filtro-busqueda');
+      const wrapperInput = document.getElementById('wrapper-busqueda-cancion');
+      const inputTexto = document.getElementById('input-busqueda-cancion');
+
+      if (wrapperInput.style.display === 'none') {
+          wrapperInput.style.display = 'block';
+          btnBusqueda.classList.add('selected');
+          inputTexto.focus();
+      } else {
+          wrapperInput.style.display = 'none';
+          btnBusqueda.classList.remove('selected');
+          inputTexto.value = '';
+          textoBusquedaActual = '';
+          ejecutarFiltradoGlobal();
+      }
+  }
+
+  function actualizarContadorGeneros() {
+      const contadorSpan = document.getElementById('generos-contador');
+      if (!contadorSpan) return;
+      const seleccionados = generosFiltroSeleccionados.size;
+      const btnTodos = document.getElementById('tag-filtro-todos');
+      contadorSpan.textContent = (btnTodos.classList.contains('selected') || seleccionados === 0) ? '' : `(${seleccionados})`;
+  }
+
+  // Helper nativo para recuperar el token de seguridad CSRF de Django
+  function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+          const cookies = document.cookie.split(';');
+          for (let i = 0; i < cookies.length; i++) {
+              const cookie = cookies[i].strip ? cookies[i].strip() : cookies[i].trim();
+              if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                  cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                  break;
+              }
+          }
+      }
+      return cookieValue;
+  }
+
+  // ==========================================================================
+  // DESPACHO FINAL TRANSMISIÓN MASIVA AL ENDPOINT DE BORRADO
+  // ==========================================================================
+  async function despacharLoteEliminacionServer() {
+        const btnProcesar = document.getElementById('btn-procesar-eliminacion-lote');
+        
+        // 1. Validamos usando tu estructura real en memoria
+        if (!cestaEliminar || cestaEliminar.length === 0) {
+            alert("La cesta de eliminación está vacía.");
+            return;
+        }
+
+        // 2. Bloquear controles visuales
+        btnProcesar.disabled = true;
+        btnProcesar.textContent = "Procesando...";
+
+        // 3. Mapeo directo y exacto sin funciones parche
+        const payloadCesta = cestaEliminar.map(item => {
+            // Buscamos la fila en el DOM usando el id_relacion para extraer su input de fecha específico
+            const filaDOM = document.querySelector(`[data-cesta-relacion-id="${item.id_relacion}"]`);
+            const inputFecha = filaDOM ? filaDOM.querySelector('.fecha-item-cesta') : null;
+            
+            // Recuperamos el playlistId que necesitas en el backend. 
+            // Como tu objeto en 'cestaEliminar' no lo guardaba, lo leemos del dataset del input o usamos la playlist actual activa
+            const inputFechaGlobal = document.getElementById('fecha-global-lote');
+            
+            return {
+                relacion_id: parseInt(item.id_relacion),
+                // Si la fila tiene la fecha, usamos esa; si no, el fallback global
+                fecha: inputFecha ? inputFecha.value : inputFechaGlobal.value,
+                // Enviamos el ID de la playlist origen (lo leemos de la fila o del contexto)
+                playlist_id: parseInt(window.idPlaylistActivaActual || item.playlist_id || document.querySelector('#contenedor-playlists-dinamico .playlist-row')?.dataset.id)
+            };
+        });
+
+        // Validación de seguridad de fechas
+        const fechaInvalida = payloadCesta.some(item => !item.fecha);
+        if (fechaInvalida) {
+            alert("Por favor, asegúrate de que todas las canciones tengan una fecha de ejecución asignada.");
+            btnProcesar.disabled = false;
+            btnProcesar.textContent = "Crear Tareas";
+            return;
+        }
+
+        try {
+            // 4. Despacho transaccional al endpoint de Django
+            const response = await fetch("{% url 'planificar_eliminacion_lote_ajax' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ cesta: payloadCesta })
+            });
+
+        
+            const data = await response.json();
+
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || "Error al procesar el lote.");
+            }
+
+            // ÉXITO GLOBAL O PARCIAL: Vaciamos la cesta y recargamos para pintar las alertas
+            cestaEliminar = [];
+            window.location.href = "{% url 'lista_playlist_home' %}";
+
+        } catch (error) {
+            console.error("Fallo transaccional:", error);
+            alert(`No se pudo procesar el lote: ${error.message}`);
+            
+            btnProcesar.disabled = false;
+            btnProcesar.textContent = "Crear Tareas";
+        }
+    }
+
+    /**
+    * Puente de compatibilidad con tu partial playlist_rows.html
+    * Desvía el click clásico hacia el flujo de carga de canciones para eliminación.
+    */
+    function selectPlaylist(elementoRow) {
+        if (!elementoRow) return;
+        const playlistId = elementoRow.dataset.id;
+        if (playlistId) {
+            cargarCancionesDePlaylist(playlistId);
+        }
+    }
+</script>
+{% endblock %}

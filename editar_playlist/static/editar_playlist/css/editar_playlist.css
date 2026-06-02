@@ -365,10 +365,11 @@
 /* ==========================================================================
    6. VENTANAS MODALES GENERALES (ESTRUCTURAS Y GRIDS DE DATOS)
    ========================================================================== */
+/* Fondo del modal */
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -379,101 +380,120 @@
   display: none;
 }
 
+/* 🎯 EL CONTENEDOR PRINCIPAL: Ahora es elástico por defecto */
 .modal-content {
   background: #181818;
   color: #fff;
   padding: 1.5rem;
   border-radius: 10px;
-  width: 500px; /* ancho suficiente para que todo quede en una línea */
-  margin-top: 0;
+  box-sizing: border-box;
+  transition: width 0.2s ease-in-out; /* Animación suave al cambiar de tamaño */
+  
+  /* 🚀 TAMAÑO POR DEFECTO: Para Tareas normales (Corto y compacto) */
+  width: 500px; 
 }
 
-.modal-content h2{
+/* 🚀 TAMAÑO EXPANDIDO: Solo para Agregar Canción */
+.modal-content.modo-agregar-cancion {
+  width: 600px!important;
+}
+
+/* Cabecera del título */
+.modal-content h2 {
   background: linear-gradient(180deg, #4a4a4a, #121212);
   color: #fff;
-  padding: 1.5rem;
-  border-radius: 10px;
-  margin-top: 0px;
-  margin-bottom: 6px;
+  padding: 1.2rem;
+  border-radius: 8px;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
 }
 
+/* 🎯 ESTRUCTURA DE TABLA: Usamos Flexbox para que los campos 
+   tengan un ancho proporcional natural sin aplastarse */
 .modal-header,
 .modal-row {
-  display: grid;
-  grid-template-columns: 0.4fr 0.4fr 0.5fr; /* Acción | Posición | Fecha */
-  gap: 12px;
+  display: flex;
+  width: 100%;
+  gap: 15px;
   align-items: center;
-}
-
-.modal-header {
-  background: transparent;
-  color: #fff;
-  border-bottom: 1px solid #444;
-  padding: 6px 8px;
-  margin-bottom: 8px;
-  font-weight: 600;
-  text-align: center;
-}
-
-.modal-row {
-  background: #181818;
-  padding: 6px 8px;
   margin-bottom: 12px;
 }
 
-.modal-row input {
-  align-items: center;
+.modal-header {
+  border-bottom: 1px solid #444;
+  padding-bottom: 8px;
+  font-weight: 600;
 }
 
+/* 🎯 LAS CELDAS: Cada columna se distribuye elásticamente */
+#modal-content-tarea .col-accion      { flex: 1; min-width: 100px; }
+#modal-content-tarea .col-posicion    { flex: 1.5; min-width: 150px; }
+#modal-content-tarea .col-fecha       { flex: 1; min-width: 120px; }
+#modal-content-tarea .col-proyeccion  { flex: 1; min-width: 100px; }
+
+/* Alineación interna de las celdas */
+.modal-header > div,
+.modal-header > span,
+.modal-row > div {
+  display: flex;
+  flex-direction: column; /* Permite saltos de línea naturales (como el Actual-Nueva) */
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+/* 🎯 CONTROLES DE ENTRADA: Ocupan todo el ancho de su celda de forma limpia */
 .modal-row select,
 .modal-row input {
-  width: 80%;
-  padding: 4px 6px; /* reducido para que no se vean más altos que el header */
+  width: 100%;
+  padding: 6px 8px;
   font-size: 14px;
   border-radius: 4px;
   border: 1px solid #555;
   background: #222;
   color: #fff;
-  line-height: 1.4;
   box-sizing: border-box;
   text-align: center;
 }
 
-.modal-actions {
+/* El select de posición se mantiene pequeño adentro de su celda */
+#modal-content-tarea .col-posicion-inputs {
   display: flex;
-  gap: 10px;
+  gap: 6px;
+  align-items: center;
   justify-content: center;
-  margin-top: 1rem;
 }
-
-.modal-row .col-accion,
-.modal-row .col-posicion,
-.modal-row .col-fecha {
-  display: flex;
-  justify-content: center;   /* centra horizontalmente */
-  align-items: center;       /* centra verticalmente */
-}
-
-.modal-row .col-posicion select {
-    width: 70px !important;
-    flex: none !important;
-    text-align: center;
-}
-
-.col-posicion-actual{
-  min-width: 25px; 
-  font-weight: bold; 
-  font-size: 0.9em;
-  text-align: center;
-}
-
-.campo-dinamico {
-  margin-top: 1rem;
+#modal-content-tarea .col-posicion select {
+  width: 80px !important;
 }
 
 #tipo-tarea option[value="Agregar"] {
   display: none;
 }
+
+/* 🎯 CONTROL DE VISIBILIDAD DE LA CUARTA COLUMNA */
+.col-proyeccion {
+  display: none !important; /* Desaparecida del mapa en modo normal */
+}
+
+/* Reinyectar la columna en el flujo solo cuando el contenedor esté expandido */
+.modal-content.modo-agregar-cancion .col-proyeccion {
+  display: flex !important;
+}
+
+/* Botones de acción */
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.campo-dinamico {
+  margin-top: 1rem;
+  width: 100%;
+}
+
 
 /* ==========================================================================
    7. CONTROLADORES E INTERFACES ESPECÍFICAS DE TAREAS
@@ -858,3 +878,330 @@
 #modal-tarea .col-posicion-actual {
   color: #fff;
 }
+
+.resultado-local-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: var(--card-bg, #1e1e1e);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.resultado-local-item:hover {
+  background: var(--hover-bg, #2a2a2a);
+  border-color: #1db954; /* Verde Spotify corporativo */
+}
+.resultado-local-item.seleccionado-temp {
+  border-color: #1db954;
+  background: rgba(29, 185, 84, 0.1);
+}
+
+/* ==========================================================================
+    🎯 VARIANTES EXCLUSIVAS PARA EL MODO PROCESAMIENTO EN LOTE (MASIVO)
+   ========================================================================== */
+
+/* 1. Contenedor Maestro Centrado */
+.lote-container-master {
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+/* 2. Layout Grid Ajustado a los 1500px del Header */
+.lote-layout-grid {
+    display: grid;
+    /* Ajuste de 3 columnas reales basadas en tus anchos: Izquierda (800px), Centro (420px), Acciones (240px) + gaps */
+    grid-template-columns: 700px 320px 200px; 
+    gap: 20px;
+    width: 1500px;
+    justify-content: center; /* Centra el grid dentro del contenedor maestro */
+}
+
+/* 3. Header Sincronizado a 1500px */
+.lote-header-block {
+    margin-bottom: 10px;
+    text-align: left;
+    width: 1500px;
+}
+
+.lote-header-block h1 {
+    background: linear-gradient(180deg, #4a4a4a, #121212);
+    padding: 1.5rem;
+    border-radius: 8px;
+    font-size: 40px;
+    font-weight: bold;
+    color: #fff;
+    margin: 0;
+    box-sizing: border-box;
+    width: 370px;
+}
+
+/* 4. Columnas con proporciones controladas */
+.lote-col-izquierda {
+    width: 100%;
+    height: 550px;
+    background: #181818;
+    border-radius: 12px;
+    padding: 15px;
+    border: 1px solid #2a2a2a;
+    box-sizing: border-box;
+    /* 🚀 SOLUCIÓN AL SCROLL: Convertimos la columna en Flexbox para que controle la altura de la lista interna */
+    display: flex;
+    flex-direction: column;
+}
+
+.lote-col-derecha {
+    width: 100%;
+    height: 550px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Variante para la tercera columna de acciones */
+.lote-col-derecha-acciones {
+    width: 100%;
+    height: 550px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Centra verticalmente los botones en los 550px */
+    align-items: center;     /* Centra horizontalmente los botones */
+    box-sizing: border-box;
+}
+/* 5. Estructura de la Tabla de Canciones del Lote */
+.lote-songs-header,
+.lote-song-row-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    gap: 8px;
+}
+
+.lote-songs-header {
+    position: sticky;
+    top: 0;
+    background: #181818;
+    z-index: 10;
+    color: #b3b3b3;
+    font-size: 13px;
+    border-bottom: 1px solid #2a2a2a;
+    padding: 6px 8px;
+    flex-shrink: 0; /* Evita que el header de la tabla se aplaste */
+}
+
+/* 🚀 Forzar a que la lista llene el espacio restante y aplique scroll vertical si desborda los 550px del padre */
+#contenedor-lote-dinamico.songs-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    width: 100%;
+}
+
+.lote-song-row-item {
+    border-radius: 6px;
+    transition: background 0.2s ease;
+    color: #fff;
+    background: transparent;
+    flex-shrink: 0; /* Evita que las filas se deformen al acumularse */
+}
+
+.lote-song-row-item:hover {
+    background: #242424;
+}
+
+/* Estilos para los controles de entrada inyectados en la tabla */
+.lote-input-control {
+    padding: 4px; 
+    background: #282828; 
+    color: #fff; 
+    border: 1px solid #404040; 
+    border-radius: 4px;
+    font-size: 13px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.lote-input-control:focus {
+    border-color: #535353;
+    outline: none;
+}
+
+/* ==========================================================================
+   🔒 CLON DE PRECISIÓN: GLOBO DE VALIDACIÓN NATIVO DE CHROME (FRONT-LAYER)
+   ========================================================================== */
+.burbuja-alerta-local {
+    position: fixed; /* 🚀 Cambiado a fixed para flotar sobre el viewport real */
+    z-index: 99999;  /* Por encima de grids, barras y contenedores */
+    pointer-events: none;
+    
+    /* 🎨 Tu paleta y formato exacto modificado */
+    background: #ffffff;
+    color: #222222;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 14px;
+    padding: 4px 10px 5px 8px;
+    border: 1px solid #767676;
+    border-radius: 2px;
+    box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.25);
+    
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    width: auto;
+
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+/* ⚠️ Tu icono recalibrado tal cual lo dejaste */
+.burbuja-alerta-local::before {
+    content: '!';
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;      
+    height: 24px;     
+    background: #db763c;      
+    font-size: 18px;          
+    font-weight: bold;        
+    color: #ffffff;
+    font-family: inherit;
+    border-radius: 2px;
+    flex-shrink: 0;           
+}
+
+/* 📐 FLECHA SUPERIOR BLANCA */
+.burbuja-alerta-local::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 15px;
+    border: 6px solid transparent;
+    border-bottom-color: #ffffff;
+}
+
+/* Borde gris para la flecha superior */
+.burbuja-alerta-local-borde-flecha {
+    position: absolute;
+    bottom: 100%;
+    left: 14px;
+    border: 7px solid transparent;
+    border-bottom-color: #767676;
+    z-index: -1;
+}
+
+/* Toggle del estado activo */
+.burbuja-alerta-local.show {
+    opacity: 1;
+    transform: translateY(6px); /* Cae suavemente esos 6px nativos abajo de la fila */
+}
+
+/* 3. Header Sincronizado a 1500px */
+.lote-header-block-playlist {
+    margin-bottom: 10px;
+    text-align: left;
+    width: 1500px;
+}
+
+.lote-header-block-playlist h1 {
+    background: linear-gradient(180deg, #4a4a4a, #121212);
+    padding: 1.5rem;
+    border-radius: 8px;
+    font-size: 40px;
+    font-weight: bold;
+    color: #fff;
+    margin: 0;
+    box-sizing: border-box;
+    width: 575px;
+}
+
+
+.lote-layout-grid.lote-playlists {
+    display: grid;
+    /* Ajuste de 3 columnas reales basadas en tus anchos: Izquierda (800px), Centro (420px), Acciones (240px) + gaps */
+    grid-template-columns: 500px 520px 150px; 
+    gap: 20px;
+    width: 1500px;
+    justify-content: center; /* Centra el grid dentro del contenedor maestro */
+}
+
+/* ==========================================================================
+   📦 RECALIBRACIÓN GÉNEROS + INPUT DE BÚSQUEDA INTEGRADO
+   ========================================================================== */
+
+.detalle-box.lote-playlists {
+    height: 150px; 
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+#generos-list-container.generos-grid-compacto.lote-playlists {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+    
+    /* 🎯 Espacio rígido para las etiquetas (aproximadamente 2 filas libres) */
+    max-height: 68px; 
+    height: 68px;
+    
+    overflow-y: auto; 
+    padding-right: 4px;
+    margin-top: 10px;
+    flex-shrink: 0;
+}
+
+/* 🔒 ANCLAJE PARA QUE EL INPUT NO SATURE LAS COLUMNAS */
+#wrapper-busqueda-cancion {
+    grid-column: 1 / -1;     /* 🚀 Fuerza al input a ocupar TODO el ancho del grid */
+    order: -1;               /* 🚀 Lo clava al principio de la lista arriba de las etiquetas */
+    margin-bottom: 4px;      /* Separación limpia con los tags de abajo */
+}
+
+/* Evitamos que el input herede estilos extraños de altura de los botones */
+.filter-search-input {
+    height: 32px;
+    box-sizing: border-box;
+    padding: 6px 10px;
+    background: #1c1c1c;
+    border: 1px solid #404040;
+    color: #fff;
+    border-radius: 4px;
+}
+
+/* Tamaño fijo estricto para los botones de géneros */
+#generos-list-container.lote-playlists .genero-toggle-item {
+    height: 30px;        
+    line-height: 18px;   
+    box-sizing: border-box;
+    flex-shrink: 0;      
+}
+
+.lote-layout-grid.lote-playlists.lote-playlist-eliminar {
+    display: grid;
+    /* Ajuste de 3 columnas reales basadas en tus anchos: Izquierda (800px), Centro (420px), Acciones (240px) + gaps */
+    grid-template-columns: 680px 520px 200px; 
+    gap: 20px;
+    width: 1500px;
+    justify-content: center; /* Centra el grid dentro del contenedor maestro */
+}
+
+.lote-header-block-playlist.lote-eliminar h1{
+    width: 370px;
+}
+
+.lote-layout-grid.lote-playlists.lote-playlist-posicionar{
+    display: grid;
+    /* Ajuste de 3 columnas reales basadas en tus anchos: Izquierda (800px), Centro (420px), Acciones (240px) + gaps */
+    grid-template-columns: 750px 520px 200px; 
+    gap: 20px;
+    width: 1500px;
+    justify-content: center; /* Centra el grid dentro del contenedor maestro */
+}
+

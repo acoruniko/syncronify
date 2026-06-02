@@ -73,7 +73,7 @@ def importar_playlist_confirmar(request, playlist_id):
 
             url = data.get("next")
 
-        # 6. Guardar playlist (Aquí capturamos la metadata completa)
+        # 6. Guardar playlist (Capturamos metadata completa de Spotify)
         playlist_resp = requests.get(
             f"https://api.spotify.com/v1/playlists/{playlist_id}",
             headers=headers,
@@ -88,10 +88,10 @@ def importar_playlist_confirmar(request, playlist_id):
 
         descripcion = playlist_data.get("description", "")[:1000] if playlist_data.get("description") else ""
         
-        # 👉 CAPTURAMOS EL SNAPSHOT_ID INICIAL
-        snapshot_id_inicial = playlist_data.get("snapshot_id")
+        # 🔄 CAPTURA DEL SNAPSHOT ACTUAL DESDE LA API
+        snapshot_fresco = playlist_data.get("snapshot_id")
 
-        # Usamos una transacción atómica para asegurar que la playlist y sus tracks se guarden en bloque
+        # Aislamiento atómico para persistir la estructura completa sin corrupción parcial
         with transaction.atomic():
             playlist_obj = Playlist.objects.create(
                 id_spotify=playlist_data["id"],
@@ -101,10 +101,13 @@ def importar_playlist_confirmar(request, playlist_id):
                 total_canciones=playlist_data["tracks"]["total"],
                 cover_url=playlist_data["images"][0]["url"] if playlist_data.get("images") else None,
                 usuario_importo=request.user,
-                snapshot_id=snapshot_id_inicial  # 💾 ALMACENADO EN BASE DE DATOS
+                
+                # 🛡️ ASIGNACIÓN CONFORME AL NUEVO MODELO DE DATOS
+                snapshot_ahorita=snapshot_fresco,   # Guardamos el estado actual capturado
+                snapshot_anterior=None               # Importación inicial: queda explícitamente vacío
             )
 
-            # 7. Guardar relaciones (Metido dentro del bloque atómico por seguridad elemental)
+            # 7. Guardar relaciones de canciones
             for idx, (cancion_obj, item) in enumerate(canciones_guardadas, start=1):
                 PlaylistCancion.objects.create(
                     playlist=playlist_obj,
@@ -115,11 +118,11 @@ def importar_playlist_confirmar(request, playlist_id):
                     estado="activo"
                 )
                 
-            # 🚀 ASOCIAR GÉNEROS SELECCIONADOS (Dentro de la misma transacción atómica)
+            # 🚀 ASOCIAR GÉNEROS SELECCIONADOS
             for g_id in lista_generos_ids:
                 PlaylistGenero.objects.create(
-                    playlist_id=playlist_obj.pk,  # 🧠 Usamos el atributo nativo de Django '_id'
-                    genero_id=g_id                # 🧠 Usamos el atributo nativo de Django '_id'
+                    playlist_id=playlist_obj.pk,  
+                    genero_id=g_id                
                 )
 
         # 8. Mensaje de éxito

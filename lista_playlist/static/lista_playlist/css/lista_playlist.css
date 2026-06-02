@@ -271,3 +271,9 @@
   text-align: center; 
   width: 100%;
 }
+
+.super-bloque.lote-playlist{
+  width: 200px; 
+  margin-left: 0px;
+  margin-bottom: 50px;
+} 
