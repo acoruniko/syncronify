@@ -10,10 +10,11 @@ from django.db.models import F
 from conexion.models import CredencialesSpotify
 from conexion.services import get_spotify_token, check_credentials, check_rate_limit, handle_429
 from playlists.models import Playlist, Cancion, PlaylistCancion, Tarea
-import requests
+import requests, json
 from sincronizar_playlist.services import execute_tarea
 from conexion.auth import build_authorize_url
 from django.db import transaction
+from django.db.models import Case, When, IntegerField
 from playlists.services import procesar_consecuencias_tarea_eliminada
 
 
@@ -45,7 +46,7 @@ def sincronizar_playlist_home(request):
     for t in tareas_qs:
         tareas.append({
             "id_tarea": t.id_tarea,
-            "accion": t.tipo,
+            "accion": t.tipo,   # Mantiene el string para la columna 'Acción' ("Agregar", "Eliminar")
             "posicion": t.posicion,
             "titulo": t.relacion.cancion.nombre if t.relacion and t.relacion.cancion else None,
             "album": t.relacion.cancion.album if t.relacion and t.relacion.cancion else None,
@@ -55,6 +56,12 @@ def sincronizar_playlist_home(request):
             "estado": t.estado,
             "usuario": t.usuario.nombre_completo if t.usuario else None,
             "fecha_ejecucion": t.fecha_ejecucion.strftime("%d-%m-%Y"),
+            
+            # ==========================================
+            # 🚀 LOS ENLACES PERDIDOS CON EL FRONTEND:
+            # ==========================================
+            "id_lote": t.id_lote if hasattr(t, "id_lote") else None,  # Ajusta el nombre si en tu modelo Tarea se llama distinto
+            "tipo": t.tipo, # Lo necesita data-tipo en el HTML para saber si es "agregar"
         })
 
     # ⚠️ Verificar rate limit pero sin mensajes
@@ -131,113 +138,105 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
         messages.error(request, "Método no permitido para sincronizar tarea.")
         return JsonResponse({"ok": False, "error": "Método no permitido"}, status=405)
 
-    tarea = get_object_or_404(Tarea, id_tarea=tarea_id, relacion__playlist_id=playlist_id)
+    tarea = get_object_or_404(Tarea, id_tarea=tarea_id)
 
-    # ⚠️ Credenciales
+    # Validación de seguridad opcional por si acaso mutó la playlist en el backend:
+    playlist_actual_id = tarea.relacion.playlist_id if tarea.relacion else None
+    if playlist_actual_id and playlist_actual_id != int(playlist_id):
+        print(f"[WARN VISTA] La tarea {tarea_id} mutó de playlist. Original de URL: {playlist_id} -> Actual en DB: {playlist_actual_id}")
+        # Dejamos que continúe usando el ID real de la base de datos en lugar de morir en un 404
+
+    # 📥 EXTRAER PARÁMETRO DE LOTE DESDE EL JSON ENVIADO POR JS
+    ejecutar_como_lote = False
+    if request.content_type == "application/json":
+        try:
+            data = json.loads(request.body)
+            ejecutar_como_lote = data.get("ejecutar_como_lote", False)
+        except json.JSONDecodeError:
+            pass
+    else:
+        ejecutar_como_lote = request.POST.get("ejecutar_como_lote") in ["true", "True", "1", True]
+
+    # ⚠️ Validación de Credenciales de Spotify
     cred = check_credentials(request)
     if isinstance(cred, HttpResponseRedirect):
         return JsonResponse({
             "ok": False,
             "requires_auth": True,
-            "auth_url": build_authorize_url(state=f"sincronizar_playlist")
+            "auth_url": build_authorize_url(state="sincronizar_playlist")
         }, status=401)
 
-    # ⚠️ Ya completada o no operable
+    # ⚠️ Estados de control (Completada / No operable)
     estado_lower = tarea.estado.strip().lower() if tarea.estado else ""
     if estado_lower == "completado":
-        messages.info(
-            request,
-            f"La tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' "
-            f"en la playlist '{tarea.relacion.playlist.nombre}' "
-            f"ya fue completada previamente."
-        )
-        return JsonResponse({
-            "ok": False,
-            "error": "La tarea ya está completada.",
-            "estado": tarea.estado,
-            "intentos": tarea.intentos,
-            "rate_limited": False,
-            "seconds_remaining": 0,
-        })
+        messages.info(request, f"La tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' ya fue completada.")
+        return JsonResponse({"ok": False, "error": "La tarea ya está completada.", "estado": tarea.estado})
         
     if estado_lower in ["anulada", "cancelada"]:
-        messages.error(
-            request,
-            f"No se puede ejecutar esta tarea porque su estado actual es '{tarea.estado}'."
-        )
-        return JsonResponse({
-            "ok": False,
-            "error": f"Tarea en estado no operable: {tarea.estado}",
-            "estado": tarea.estado,
-        }, status=400)
+        return JsonResponse({"ok": False, "error": f"Tarea en estado no operable: {tarea.estado}", "estado": tarea.estado}, status=400)
 
-    # ⚠️ Rate limit
+    # ⚠️ Control de Rate Limit
     seconds_remaining = check_rate_limit(request, cred, show_message=True)
     if seconds_remaining:
-        return JsonResponse({
-            "ok": False,
-            "error": f"Rate limit activo. Espera {seconds_remaining} segundos.",
-            "rate_limited": True,
-            "seconds_remaining": seconds_remaining,
-        })
+        return JsonResponse({"ok": False, "error": f"Rate limit activo.", "rate_limited": True, "seconds_remaining": seconds_remaining})
 
-    # =====================================================================
-    # 🛡️ VALIDACIONES DE COHERENCIA CRONOLÓGICA MANUAL (PRODUCCIÓN)
-    # =====================================================================
+    # 🛡️ VALIDACIONES DE COHERENCIA CRONOLÓGICA
     tipo_actual = tarea.tipo.strip().lower()
     relacion_estado = tarea.relacion.estado.strip().lower() if tarea.relacion and tarea.relacion.estado else ""
 
-    # CONTROL DE EXISTENCIA: Evita interactuar en Spotify con algo que está "Pendiente" de agregarse
     if tipo_actual in ["eliminar", "posicionar"] and relacion_estado == "pendiente":
-        messages.error(
-            request,
-            f"No puedes ejecutar '{tarea.tipo}' para '{tarea.relacion.cancion.nombre}' "
-            f"porque la canción aún no ha sido agregada físicamente a la playlist de Spotify."
-        )
+        messages.error(request, f"No puedes ejecutar '{tarea.tipo}' porque la canción aún no ha sido agregada a Spotify.")
         return JsonResponse({"ok": False, "error": "Canción no agregada aún en Spotify"}, status=400)
-       # =====================================================================
 
-    # 👉 Ejecutar tarea y recibir telemetría real por retorno
-    estado, concilio, mensaje_telemetria = execute_tarea(tarea.id_tarea)
+    # =====================================================================
+    # 👉 EJECUCIÓN SOBERANA: Selección de flujo basada EN LA ORDEN DEL JS
+    # =====================================================================
+    tipo_actual = tarea.tipo.strip().lower()
+
+    # 🎯 LA CORRECCIÓN: Quitamos 'pertenece_a_lote' como disparador automático. 
+    # Solo se procesa como lote si el JS explícitamente lo pide (ejecutar_como_lote == True)
+    if ejecutar_como_lote and tipo_actual in ["agregar", "eliminar"]:
+        print(f"\n=== [DEBUG VISTA] INICIO PROCESAMIENTO LOTE SOLICITADO [{tipo_actual.upper()}] ===")
+        
+        tareas_lote = Tarea.objects.filter(
+            id_lote=tarea.id_lote, 
+            tipo__iexact=tipo_actual, 
+            estado__in=["Pendiente", "En progreso"]
+        )
+        total_tareas_pendientes = tareas_lote.count()
+
+        if total_tareas_pendientes == 0:
+            return JsonResponse({"ok": False, "error": f"No quedan tareas de {tipo_actual} pendientes."}, status=400)
+
+        estado, concilio, mensaje_telemetria = execute_tarea(
+            tarea.id_tarea, source="manual", ejecutar_como_lote=True, request=request
+        )
+        print(f"=== [DEBUG VISTA] FIN PROCESAMIENTO LOTE [{tipo_actual.upper()}] ===\n")
+        
+        total_procesadas = total_tareas_pendientes
+
+    # 2. FLUJO UNITARIO / SECUENCIAL MANUAL: Si el JS mandó ejecutar_como_lote=False, 
+    # se procesa una por una en el bucle del cliente, sin importar que tenga id_lote en DB.
+    else:
+        print(f"\n=== [DEBUG VISTA] EJECUCIÓN SECUENCIAL/UNITARIA FORZADA (ID Tarea: {tarea.id_tarea} | Tipo: {tarea.tipo}) ===")
+        
+        estado, concilio, mensaje_telemetria = execute_tarea(
+            tarea.id_tarea, source="manual", ejecutar_como_lote=False, request=request
+        )
+        total_procesadas = 1
     
-    # 🔄 REFRESCAR LA INSTANCIA LOCAL de la vista de forma segura
+    # Refrescamos el estado final después de procesar
     tarea.refresh_from_db()
 
-    # Si el servicio nos avisa que se ejecutó la conciliación, disparamos el mensaje de inmediato
     if concilio and mensaje_telemetria:
         messages.info(request, mensaje_telemetria)
 
     if estado == "Completado":
-        # Leemos el atributo volátil recalculado en las consecuencias (esto sí funciona si usas la misma instancia recreada)
-        # Para asegurarnos debido al refresh, buscamos las consecuencias del flujo
-        consecuencias = getattr(tarea, "_consecuencias", [])
-        for msg_consecuencia in consecuencias:
-            messages.info(request, msg_consecuencia)
-
-        messages.success(
-            request,
-            f"La tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' "
-            f"en la playlist '{tarea.relacion.playlist.nombre}' se ejecutó correctamente."
-        )
         return JsonResponse({
-            "ok": True,
-            "estado": tarea.estado,
-            "intentos": tarea.intentos,
-            "rate_limited": False,
-            "seconds_remaining": 0,
+            "ok": True, "estado": tarea.estado, "intentos": tarea.intentos,
+            "rate_limited": False, "seconds_remaining": 0, "lote_procesado": ejecutar_como_lote,
+            "total_lote": total_tareas_pendientes if (ejecutar_como_lote and tipo_actual in ["agregar", "eliminar"]) else 1
         })
-
-    elif estado == "Anulada":
-        motivo = tarea.mensaje_error or "La playlist se sincronizó con Spotify y esta acción ya no es necesaria."
-        messages.warning(
-            request,
-            f"La tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' en la playlist '{tarea.relacion.playlist.nombre}' no se ejecutó porque se encuentra Anulada."
-        )
-        return JsonResponse({"ok": False, "error": motivo, "estado": tarea.estado})
-
     else:
-        messages.error(
-            request,
-            f"Error al ejecutar la tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' en la playlist '{tarea.relacion.playlist.nombre}': {tarea.mensaje_error}"
-        )
-        return JsonResponse({"ok": False, "error": tarea.mensaje_error, "estado": tarea.estado})
+        error_msg = tarea.mensaje_error or "Ocurrió un error en el procesamiento."
+        return JsonResponse({"ok": False, "error": error_msg, "estado": tarea.estado})

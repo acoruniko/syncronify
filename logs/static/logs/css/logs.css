@@ -115,7 +115,6 @@
 .col-fecha,
 .col-modulo {
   text-align: center;       /* todas centradas */
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }

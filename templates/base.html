@@ -5,13 +5,10 @@
     <meta charset="UTF-8">
     <title>{% block title %}Syncronify{% endblock %}</title>
 
-    <!-- Favicon con el logo de Syncronify -->
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/logo-icon.png' %}">
 
-    <!-- CSS global -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
-    <!-- CSS específico por vista -->
     {% block extra_css %}{% endblock %}
 
     <style>
@@ -32,10 +29,8 @@
     </style>
 </head>
 <body>
-    <!-- Menú superior -->
     <header class="topbar">
         <div class="topbar-left">
-            <!-- Logo clickeable que lleva al home -->
             <a href="{% url 'lista_playlist_home' %}">
                 <img src="{% static 'img/logo.png' %}" alt="Logo Syncronify" class="logo">
             </a>
@@ -46,7 +41,9 @@
             {% if messages %}
             <div class="messages-bar scroll-container">
                 {% for message in messages %}
-                    <div class="message {{ message.tags }}">{{ message|linebreaksbr }}</div>
+                    <div class="message {{ message.tags }} procesar-mensaje">
+                        <span class="texto-mensaje-interno">{{ message|safe }}</span>
+                    </div>
                 {% endfor %}
             </div>
             {% endif %}
@@ -70,24 +67,20 @@
         </div>
     </header>
 
-    <!-- Popup de rate limit -->
     {% if rate_limited %}
     <div id="rate-limit-popup" class="rate-limit-popup">
         ⏳ Penalización de la API activa: espera <span id="countdown-top">{{ seconds_remaining }}</span>s
     </div>
     {% endif %}
 
-    <!-- Contenido dinámico -->
     <main class="content">
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Banner inferior -->
     <footer class="banner">
         <img src="{% static 'img/banner.png' %}" alt="Banner Syncronify" class="banner-img">
     </footer>
 
-    <!-- JS para countdown -->
     <script>
       // Snippet oficial de Django para obtener el CSRF token desde las cookies
       function getCookie(name) {
@@ -117,6 +110,91 @@
           }
         }, 1000);
       }
+      
+      // 🚀 MOTOR REACTIVO PARA PROCESAR DATA DEL PORTAPAPELES (Vigila cambios en tiempo real)
+      document.addEventListener("DOMContentLoaded", () => {
+          const regexDelimitador = /\[\[\[([\s\S]*?)\]\]\]/;
+
+          // Función central de procesamiento quirúrgico
+          function procesarContenedorMensaje(contenedor) {
+              const textoPuro = contenedor.textContent;
+              const coincidencia = textoPuro.match(regexDelimitador);
+
+              // Si tiene los corchetes y no se le ha colgado un botón previamente
+              if (coincidencia && !contenedor.querySelector(".btn-copiar-log")) {
+                  let textoACopiar = coincidencia[1]
+                      .split(' | ')
+                      .map(linea => linea.trim())
+                      .join('\n');
+
+                  // Limpieza visual absoluta sin importar la estructura de etiquetas internas
+                  contenedor.innerHTML = contenedor.innerHTML.replace(regexDelimitador, '').trim();
+
+                  // Creación del botón compacto
+                  const btnCopiar = document.createElement("button");
+                  btnCopiar.className = "btn-copiar-log";
+                  btnCopiar.innerHTML = "📋 Copiar";
+                  btnCopiar.title = "Copiar detalles al portapapeles";
+                  
+                  // Estilos estables inline
+                  btnCopiar.style.display = "inline-block";
+                  btnCopiar.style.marginLeft = "10px";
+                  btnCopiar.style.padding = "2px 6px";
+                  btnCopiar.style.fontSize = "11px";
+                  btnCopiar.style.backgroundColor = "#282828";
+                  btnCopiar.style.color = "#fff";
+                  btnCopiar.style.border = "1px solid #555";
+                  btnCopiar.style.borderRadius = "4px";
+                  btnCopiar.style.cursor = "pointer";
+                  btnCopiar.style.flexShrink = "0";
+                  btnCopiar.style.whiteSpace = "nowrap";
+                  btnCopiar.style.verticalAlign = "middle";
+
+                  btnCopiar.addEventListener("click", (e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      
+                      navigator.clipboard.writeText(textoACopiar).then(() => {
+                          const textoOriginalBtn = btnCopiar.innerHTML;
+                          btnCopiar.innerHTML = "✔️ ¡Copiado!";
+                          btnCopiar.style.color = "#1db954";
+                          
+                          setTimeout(() => {
+                              btnCopiar.innerHTML = textoOriginalBtn;
+                              btnCopiar.style.color = "#fff";
+                          }, 2000);
+                      }).catch(err => console.error("Error al copiar: ", err));
+                  });
+
+                  contenedor.appendChild(btnCopiar);
+              }
+          }
+
+          // 1. Escaneo inicial para los elementos síncronos (como los Logs)
+          const iniciales = document.querySelectorAll(".procesar-mensaje, .messages-bar .message, .message");
+          iniciales.forEach(procesarContenedorMensaje);
+
+          // 2. Configuración del Observador del DOM para capturar la inyección dinámica (Topbar / AJAX)
+          const objetivoTopbar = document.querySelector(".topbar") || document.body;
+          const observador = new MutationObserver((mutaciones) => {
+              mutaciones.forEach(mutacion => {
+                  mutacion.addedNodes.forEach(nodo => {
+                      // Si el nodo añadido es un elemento HTML
+                      if (nodo.nodeType === Node.ELEMENT_NODE) {
+                          // Si es el mensaje directo o contiene mensajes adentro
+                          if (nodo.classList.contains("message")) {
+                              procesarContenedorMensaje(nodo);
+                          } else {
+                              const subMensajes = nodo.querySelectorAll(".message, .procesar-mensaje");
+                              subMensajes.forEach(procesarContenedorMensaje);
+                          }
+                      }
+                  });
+              });
+          });
+
+          observador.observe(objetivoTopbar, { childList: true, subtree: true });
+      });
     </script>
 </body>
 </html>

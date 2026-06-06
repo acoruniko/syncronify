@@ -6,10 +6,10 @@ from django.utils import timezone
 from logs.models import LogEvento
 import requests
 
-def recalcular_posiciones_tareas_pendientes(tarea_ejecutada, posicion_anterior_movimiento=None):
+def recalcular_posiciones_tareas_pendientes(tarea_ejecutada, posicion_anterior_movimiento=None, desplazamiento=1):
     """
     Servicio para procesar cambios matemáticos secundarios en tareas del futuro.
-    Corregido el filtro de estado para soportar 'Pendiente' con mayúsculas.
+    Ahora soporta un 'desplazamiento' variable para inyecciones o remociones en lote (K).
     """
     playlist_id = tarea_ejecutada.relacion.playlist_id
     tipo_ejecutado = tarea_ejecutada.tipo.strip().lower()
@@ -27,7 +27,6 @@ def recalcular_posiciones_tareas_pendientes(tarea_ejecutada, posicion_anterior_m
         return cambios_detectados
 
     with transaction.atomic():
-        # USAMOS __iexact PARA QUE DETECTE "Pendiente" O "pendiente" SIN DISTINCIÓN
         queryset_base = Tarea.objects.select_for_update().filter(
             relacion__playlist_id=playlist_id,
             estado__iexact="pendiente"
@@ -51,22 +50,22 @@ def recalcular_posiciones_tareas_pendientes(tarea_ejecutada, posicion_anterior_m
             )
             cambios_detectados.append(msg)
 
-        # ==========================================
-        # CASO 1: CONSECUENCIAS DE UN "AGREGAR"
-        # ==========================================
+        # =====================================================================
+        # CASO 1: CONSECUENCIAS DE UN "AGREGAR" (Mueve el futuro hacia adelante)
+        # =====================================================================
         if tipo_ejecutado == "agregar":
             for t in tareas_pendientes_lista:
                 condicion_pos = t.posicion is not None and t.posicion >= N
                 condicion_ant = t.posicion_anterior is not None and t.posicion_anterior >= N
                 if condicion_pos or condicion_ant:
-                    registrar_consecuencia(t, "se modificó desplazando sus posiciones (+1)")
+                    registrar_consecuencia(t, f"se modificó desplazando sus posiciones (+{desplazamiento})")
             
-            queryset_base.filter(posicion__isnull=False, posicion__gte=N).update(posicion=F("posicion") + 1)
-            queryset_base.filter(posicion_anterior__isnull=False, posicion_anterior__gte=N).update(posicion_anterior=F("posicion_anterior") + 1)
+            queryset_base.filter(posicion__isnull=False, posicion__gte=N).update(posicion=F("posicion") + desplazamiento)
+            queryset_base.filter(posicion_anterior__isnull=False, posicion_anterior__gte=N).update(posicion_anterior=F("posicion_anterior") + desplazamiento)
 
-        # ==========================================
-        # CASO 2: CONSECUENCIAS DE UN "ELIMINAR"
-        # ==========================================
+        # =====================================================================
+        # CASO 2: CONSECUENCIAS DE UN "ELIMINAR" (Atrae el futuro hacia atrás)
+        # =====================================================================
         elif tipo_ejecutado == "eliminar":
             for t in tareas_pendientes_lista:
                 if t.relacion_id == tarea_ejecutada.relacion_id:
@@ -75,19 +74,27 @@ def recalcular_posiciones_tareas_pendientes(tarea_ejecutada, posicion_anterior_m
                     condicion_pos = t.posicion is not None and t.posicion > N
                     condicion_ant = t.posicion_anterior is not None and t.posicion_anterior > N
                     if condicion_pos or condicion_ant:
-                        registrar_consecuencia(t, "se modificó reduciendo sus posiciones (-1)")
+                        registrar_consecuencia(t, f"se modificó reduciendo sus posiciones (-{desplazamiento})")
 
-            queryset_base.filter(posicion__isnull=False, posicion__gt=N).update(posicion=F("posicion") - 1)
-            queryset_base.filter(posicion_anterior__isnull=False, posicion_anterior__gt=N).update(posicion_anterior=F("posicion_anterior") - 1)
+            # 🚀 AJUSTE MATEMÁTICO EN LOTE: Restamos la magnitud exacta del lote
+            queryset_base.filter(posicion__isnull=False, posicion__gt=N).update(posicion=F("posicion") - desplazamiento)
+            queryset_base.filter(posicion_anterior__isnull=False, posicion_anterior__gt=N).update(posicion_anterior=F("posicion_anterior") - desplazamiento)
             
+            # 🛡️ ESCUDO DE NÚMEROS NEGATIVOS O LÍMITES INVALIDADOS POST-ELIMINACIÓN:
+            # Si tras la reducción alguna posición cae por debajo del índice mínimo (1), la anulamos.
+            tareas_invalidas = queryset_base.filter(posicion__isnull=False, posicion__lt=1)
+            for t_inv in tareas_invalidas:
+                registrar_consecuencia(t_inv, "fue ANULADA debido a un reajuste de posiciones negativo o fuera de rango")
+            tareas_invalidas.update(estado="Anulada", mensaje_error="Posición invalidada por eliminación previa de elementos en lote.")
+
             queryset_base.filter(relacion_id=tarea_ejecutada.relacion_id).update(
                 estado="Anulada",
                 mensaje_error="Canción eliminada en una ejecución previa."
             )
 
-        # ==========================================
-        # CASO 3: CONSECUENCIAS DE UN "POSICIONAR"
-        # ==========================================
+        # =====================================================================
+        # CASO 3: CONSECUENCIAS DE UN "POSICIONAR" (Inalterado, no opera en lotes)
+        # =====================================================================
         elif tipo_ejecutado == "posicionar":
             X = posicion_anterior_movimiento
             Y = N
@@ -115,21 +122,17 @@ def recalcular_posiciones_tareas_pendientes(tarea_ejecutada, posicion_anterior_m
 
     return cambios_detectados
 
+
 def procesar_consecuencias_tarea_eliminada(request, relacion, tipo_tarea_eliminada):
-    """
-    Se encarga de limpiar el desastre que queda tras borrar una tarea.
-    """
+    """Se encarga de limpiar el desastre que queda tras borrar una tarea de forma manual."""
     requiere_reload = False
     
-    # Caso 1: Si eliminamos el 'Agregar', matamos todo el futuro de esa relación
     if tipo_tarea_eliminada.lower() == "agregar" and relacion.estado == "eliminado":
-        # Buscamos tareas que se quedaron 'zombis'
         tareas_zombis = Tarea.objects.filter(relacion=relacion)
         count = tareas_zombis.count()
         
         if count > 0:
             for t in tareas_zombis:
-                # Log específico para cada tarea muerta en cascada
                 messages.info(
                     request, 
                     f"Consecuencia: Se eliminó la tarea '{t.tipo}' programada para el "
@@ -139,8 +142,6 @@ def procesar_consecuencias_tarea_eliminada(request, relacion, tipo_tarea_elimina
         
         requiere_reload = True
         
-    # Aquí podrías añadir Caso 2, Caso 3 en el futuro...
-    
     return requiere_reload
 
 
@@ -150,7 +151,6 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
     Clona el estado físico actual de Spotify en la BD local de un solo golpe
     y audita las tareas pendientes del futuro aplicando reglas de acotación y anulación.
     """
-
     try:
         playlist = Playlist.objects.get(id_playlist=id_playlist_local)
         playlist.refresh_from_db()
@@ -159,7 +159,6 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
 
     headers = {"Authorization": f"Bearer {spotify_token}"}
     
-    # ⚙️ 1. DESCARGAR TRACKS DE SPOTIFY (Verdad Absoluta)
     url_tracks = f"https://api.spotify.com/v1/playlists/{playlist.id_spotify}/tracks?fields=items(track(id,name,album(name,images),artists(name),duration_ms,popularity))"
     try:
         resp_tracks = requests.get(url_tracks, headers=headers, timeout=15)
@@ -169,7 +168,6 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
     except Exception as e:
         return {"ok": False, "error": f"Error de conexión: {str(e)}"}
 
-    # Necesitamos el snapshot_id fresco de la API para empujarlo en la sucesión temporal
     url_playlist_base = f"https://api.spotify.com/v1/playlists/{playlist.id_spotify}?fields=snapshot_id"
     try:
         resp_snap = requests.get(url_playlist_base, headers=headers, timeout=10)
@@ -180,7 +178,6 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
     log_alertas_futuro = []
 
     with transaction.atomic():
-        # ───────── PASO A: CLONACIÓN FÍSICA INMEDIATA ─────────
         id_relaciones_sobrevivientes = []
         total_canciones_actuales = 0
         
@@ -223,7 +220,6 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
                 )
                 id_relaciones_sobrevivientes.append(nueva_relacion.id_relacion)
 
-        # ───────── CIERRE DE REMANENTES ─────────
         relaciones_ausentes = PlaylistCancion.objects.filter(
             playlist=playlist,
             estado="activo"
@@ -257,7 +253,7 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
             tareas_huerfanas.update(estado="Anulada")
             relaciones_a_eliminar.update(estado="eliminado", posicion=None)
 
-        # ───────── PASO B: AUDITORÍA DEL RETRACTO (EL FUTURO) ─────────
+        # ───────── PASO B: AUDITORÍA DEL RETRACTO EN CASO DE DESBORDAMIENTOS ─────────
         tareas_pendientes = Tarea.objects.filter(
             relacion__playlist=playlist, 
             estado="Pendiente"
@@ -273,7 +269,9 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
                     log_alertas_futuro.append(msg)
 
             elif tarea_futura.tipo == "Posicionar":
-                if tarea_futura.posicion > total_canciones_actuales:
+                # 🛡️ REGLA CRÍTICA DE BORDE: Si la posición requerida quedó fuera del límite actual 
+                # o el cálculo la arrojó a un número negativo o cero, se anula.
+                if tarea_futura.posicion > total_canciones_actuales or tarea_futura.posicion < 1:
                     tiene_agregar_previo = Tarea.objects.filter(
                         relacion=tarea_futura.relacion,
                         tipo="Agregar",
@@ -283,7 +281,7 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
                     if not tiene_agregar_previo:
                         tarea_futura.estado = "Anulada"
                         tarea_futura.save(update_fields=["estado"])
-                        msg = f"La tarea 'Posicionar' de '{tarea_futura.relacion.cancion.nombre}' se anuló porque su nueva posición ({tarea_futura.posicion}) quedará fuera del playlist."
+                        msg = f"La tarea 'Posicionar' de '{tarea_futura.relacion.cancion.nombre}' se anuló porque su nueva posición ({tarea_futura.posicion}) quedará fuera de los límites de la playlist."
                         log_alertas_futuro.append(msg)
             
             elif tarea_futura.tipo == "Eliminar":
@@ -296,7 +294,7 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
                 if tarea_futura.relacion.estado != "activo" and not tiene_agregar_en_cola:
                     tarea_futura.estado = "Anulada"
                     tarea_futura.save(update_fields=["estado"])
-                    msg = f"La tarea 'Eliminar' de '{tarea_futura.relacion.cancion.nombre}' se anuló porque la canción ya fue removida manualmente de Spotify."
+                    msg = f"La tarea 'Eliminar' de '{tarea_futura.relacion.cancion.nombre}' se anuló porque la canción ya fue removida de Spotify."
                     log_alertas_futuro.append(msg)
 
         # ───────── PASO C: PASAMANOS MATEMÁTICO UNIVERSAL ─────────

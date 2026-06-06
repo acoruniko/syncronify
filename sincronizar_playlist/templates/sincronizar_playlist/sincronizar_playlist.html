@@ -11,20 +11,37 @@
 <div class="sincronizar-container">
   <div class="sincronizar-layout">
 
-    <!-- Columna izquierda: lista de tareas -->
     <div class="tareas-section">
       <div class="playlist-header">
         <h1>Sincronizar Playlist</h1>
+        
+        <div class="timer-wrapper-sincronizar" style="margin-top: 8px; margin-left: 40px;font-size: 0.95rem; opacity: 0.85;">
+          <p class="timer-info">
+            Próxima ejecución de tareas programadas (estimado): 
+            <strong id="countdown-display" data-seconds="{{ segundos_restantes|default:0 }}">
+                {{ tiempo_restante|default:"0h 00m 00s" }}
+            </strong>
+          </p>
+        </div>
       </div>
 
       <div class="tasks-header sticky">
-        <span class="col-accion">Acción</span>
-        <span class="col-posicion">#</span>
-        <span class="col-title">Título / Álbum</span>
-        <span class="col-playlist">Playlist</span>
-        <span class="col-estado">Estado</span>
-        <span class="col-usuario">Creador</span>
-        <span class="col-fecha">Fecha de Ejecución</span>
+        <span class="col-accion" data-label="Acción">Acción</span>
+        <span class="col-posicion" data-label="#">#</span>
+        
+        <span class="col-title" style="display: flex; align-items: center; gap: 10px;">
+          <span class="title-text-indicator" data-label="Título / Álbum">Título / Álbum</span>
+          <input type="text" 
+                 id="search-task-input" 
+                 placeholder="Buscar..." 
+                 style="flex-grow: 1; max-width: 140px; padding: 2px 8px; border-radius: 4px; border: 1px solid #495057; background-color: #212529; color: #fff; font-size: 0.8rem; font-weight: normal;"
+                 title="Filtra por nombre de canción o álbum">
+        </span>
+        
+        <span class="col-playlist" data-label="Playlist">Playlist</span>
+        <span class="col-estado" data-label="Estado">Estado</span>
+        <span class="col-usuario" data-label="Creador">Creador</span>
+        <span class="col-fecha" data-label="Fecha de Ejecución">Fecha de Ejecución</span>
       </div>
 
       <div id="lista-tareas" class="tasks-list scroll-container">
@@ -32,7 +49,9 @@
           <div class="task-row" 
                data-id="{{ t.id_tarea }}" 
                data-playlist="{{ t.playlist_id }}"
-               data-usuario="{{ t.usuario }}">
+               data-usuario="{{ t.usuario }}"
+               data-lote="{{ t.id_lote|default:'' }}"
+               data-tipo="{{ t.tipo|lower }}">
             <span class="col-accion">{{ t.accion }}</span>
             <span class="col-posicion">
               {% if t.posicion == -1 or not t.posicion %}—{% else %}{{ t.posicion }}{% endif %}
@@ -57,7 +76,6 @@
       </div>
     </div>
 
-    <!-- Columna derecha: acciones -->
     <div class="action-panel">
       <div class="detalle-box selector-mes">
         <h3>Seleccionar Mes</h3>
@@ -68,6 +86,23 @@
                      onchange="this.form.submit()">
             </div>
         </form>
+      </div>
+
+      <div class="detalle-box">
+        <h3>Controles de Ejecución</h3>
+        
+        <div class="batch-switch-container">
+          <label class="switch-label" for="switch-lote">
+            <span class="switch-text">Selección en Lote</span>
+            <div class="switch-wrapper">
+              <input type="checkbox" id="switch-lote">
+              <span class="switch-slider round"></span>
+            </div>
+          </label>
+        </div>
+        <div id="contador-lote-container" style="margin-top: 5px; text-align: center; font-size: 0.85rem; opacity: 0.8; display: none;">
+          (<span id="contador-lote-num">0</span> seleccionadas)
+        </div>
       </div>
 
       <div class="detalle-box acciones">
@@ -94,14 +129,17 @@
 </div>
 
 <script>
+
   let tareaSeleccionadaId = null;
+  let loteSeleccionadoId = null; 
+  let tipoTareaSeleccionada = null; 
+  let tareasSeleccionadasLoteIds = []; 
   let tareaSeleccionadaUsuario = null;
   let tareaSeleccionadaPlaylist = null;
 
   let tareas = [];
   let sortConfig = { column: null, asc: true };
 
-  // Configuración de ciclos
   const ciclosAccion = [
     ["Agregar", "Posicionar", "Eliminar"],
     ["Posicionar", "Eliminar", "Agregar"],
@@ -110,65 +148,99 @@
   let cicloAccionIndex = 0;
 
   const ciclosEstado = [
-    ["Pendiente", "Completado", "Error"],
-    ["Completado", "Error", "Pendiente"],
-    ["Error", "Pendiente", "Completado"]
+    ["Pendiente", "Completado", "Error", "Anulada"],
+    ["Completado", "Error", "Anulada", "Pendiente"],
+    ["Error", "Anulada", "Pendiente", "Completado"],
+    ["Anulada", "Pendiente", "Completado", "Error"]
   ];
   let cicloEstadoIndex = 0;
 
-  // 👉 Parse de fecha dd-mm-yyyy
   const parseFecha = f => {
     if (!f) return new Date(0);
     const [dd, mm, yyyy] = f.split("-");
     return new Date(yyyy, mm - 1, dd);
   };
 
-  // 👉 Orden secundario dentro de cada grupo (elige "fecha" o "titulo")
   const ordenarPorFecha = (arr) =>
     arr.slice().sort((x, y) => parseFecha(x.fecha_ejecucion) - parseFecha(y.fecha_ejecucion));
 
   const ordenarPorTitulo = (arr) =>
     arr.slice().sort((x, y) => x.titulo.localeCompare(y.titulo));
 
-  // 👉 Agrupa por campo y concatena según orden
+  const ordenarPorPrioridadYFecha = (arr) => {
+    const mapeoPrioridad = { "pendiente": 1, "error temporal": 1, "reprogramada": 2, "error": 3, "completado": 4, "anulada": 5, "anulado": 5 };
+    return arr.slice().sort((x, y) => {
+      const pX = mapeoPrioridad[x.estado.toLowerCase()] || 99;
+      const pY = mapeoPrioridad[y.estado.toLowerCase()] || 99;
+      
+      if (pX !== pY) return pX - pY;
+      return parseFecha(x.fecha_ejecucion) - parseFecha(y.fecha_ejecucion);
+    });
+  };
+
   function agruparYConcatenar(items, campo, orden, criterioSecundario = "titulo") {
     const buckets = new Map(orden.map(k => [k, []]));
     for (const it of items) {
       if (buckets.has(it[campo])) buckets.get(it[campo]).push(it);
       else {
-        // valores fuera del orden esperado van al final
         if (!buckets.has("__otros__")) buckets.set("__otros__", []);
         buckets.get("__otros__").push(it);
       }
     }
-    const ordenar = criterioSecundario === "fecha" ? ordenarPorFecha : ordenarPorTitulo;
+    
+    const ordenar = criterioSecundario === "fecha" ? ordenarPorPrioridadYFecha : ordenarPorTitulo;
     const resultado = [];
     for (const key of orden) resultado.push(...ordenar(buckets.get(key)));
     if (buckets.has("__otros__")) resultado.push(...ordenar(buckets.get("__otros__")));
     return resultado;
   }
 
-  // 👉 Solo estas columnas son ordenables
   const columnasOrdenables = ["col-title", "col-playlist", "col-usuario", "col-fecha", "col-accion", "col-estado"];
 
   document.addEventListener("DOMContentLoaded", () => {
-    // 👉 Inicializar array tareas desde las filas renderizadas
     const filas = document.querySelectorAll(".task-row");
-    tareas = Array.from(filas).map(fila => ({
-      id_tarea: fila.dataset.id,
-      playlist_id: fila.dataset.playlist,
-      usuario: fila.dataset.usuario,
-      accion: fila.querySelector(".col-accion").textContent.trim(),
-      posicion: fila.querySelector(".col-posicion").textContent.trim(),
-      titulo: fila.querySelector(".titulo").textContent.trim(),
-      album: fila.querySelector(".album").textContent.trim(),
-      playlist: fila.querySelector(".col-playlist").textContent.trim(),
-      estado: fila.querySelector(".col-estado").textContent.trim(),
-      fecha_ejecucion: fila.querySelector(".col-fecha").textContent.trim(),
-      cover_url: fila.querySelector(".task-cover")?.src || null
-    }));
+    tareas = Array.from(filas).map(fila => {
+      return {
+        id_tarea: fila.dataset.id,
+        playlist_id: fila.dataset.playlist,
+        usuario: fila.dataset.usuario,
+        id_lote: fila.dataset.lote || "",
+        tipo: (fila.dataset.tipo || "").toLowerCase().trim(),
+        accion: fila.querySelector(".col-accion").textContent.trim(),
+        posicion: fila.querySelector(".col-posicion").textContent.trim(),
+        titulo: fila.querySelector(".titulo").textContent.trim(),
+        album: fila.querySelector(".album").textContent.trim(),
+        playlist: fila.querySelector(".col-playlist").textContent.trim(),
+        estado: fila.querySelector(".col-estado").textContent.trim(),
+        fecha_ejecucion: fila.querySelector(".col-fecha").textContent.trim(),
+        cover_url: fila.querySelector(".task-cover")?.src || null
+      };
+    });
 
-    // 👉 Delegación de eventos: selección de filas
+    // 🔍 Capturar eventos del input buscador de forma segura
+    const inputBusqueda = document.getElementById("search-task-input");
+    if (inputBusqueda) {
+      inputBusqueda.addEventListener("click", (e) => {
+        e.stopPropagation(); // Evita ordenamientos accidentales al interactuar
+      });
+
+      inputBusqueda.addEventListener("input", () => {
+        renderizarListaTareas(); // Reactividad directa sobre la fuente de datos
+      });
+    }
+
+    // Ordenamiento por defecto al cargar (Prioridades primero)
+    tareas.sort((a, b) => {
+      const mapeoPrioridad = { "pendiente": 1, "error temporal": 1, "reprogramada": 2, "error": 3, "completado": 4, "anulada": 5, "anulado": 5 };
+      const pA = mapeoPrioridad[a.estado.toLowerCase()] || 99;
+      const pB = mapeoPrioridad[b.estado.toLowerCase()] || 99;
+      if (pA !== pB) return pA - pB;
+      return parseFecha(a.fecha_ejecucion) - parseFecha(b.fecha_ejecucion);
+    });
+
+    renderizarListaTareas();
+    actualizarIndicadores();
+
     document.getElementById("lista-tareas").addEventListener("click", (e) => {
       const fila = e.target.closest(".task-row");
       if (fila) {
@@ -177,24 +249,32 @@
       }
     });
 
-    // 👉 Deseleccionar si haces click fuera
+    const inputSwitch = document.getElementById("switch-lote");
+    if (inputSwitch) {
+      inputSwitch.addEventListener("change", (e) => {
+        const seleccionada = document.querySelector(".task-row.selected");
+        if (seleccionada) {
+          iluminarSeleccion(seleccionada);
+        }
+      }); 
+    }
+
     document.addEventListener("click", (e) => {
-      if (!e.target.closest(".task-row") && !e.target.closest(".action-btn")) {
+      if (!e.target.closest(".task-row") && !e.target.closest(".action-btn") && !e.target.closest(".batch-switch-container") && e.target.id !== "search-task-input") {
         deseleccionarTarea();
       }
     });
 
-
-    // 👉 Ordenamiento al hacer click en headers
-    // 👉 Solo estas columnas son ordenables
-    const columnasOrdenables = ["col-title", "col-playlist", "col-usuario", "col-fecha", "col-accion", "col-estado"];
-
+    // Delegación y manejo limpio de clicks en el header
     document.querySelectorAll(".tasks-header span").forEach(header => {
-      header.addEventListener("click", () => {
-        const col = header.classList[0];
+      header.addEventListener("click", (e) => {
+        // Si el click vino desde adentro del input, salir inmediatamente
+        if (e.target.id === "search-task-input") return;
+
+        // Extraer la columna real a partir de sus clases
+        const col = Array.from(header.classList).find(c => c.startsWith("col-"));
         if (!columnasOrdenables.includes(col)) return;
 
-        // toggle asc/desc solo para columnas normales
         const esCiclica = (col === "col-accion" || col === "col-estado");
         if (!esCiclica) {
           if (sortConfig.column === col) {
@@ -204,24 +284,18 @@
             sortConfig.asc = true;
           }
         } else {
-          sortConfig.column = col; // asc no aplica
+          sortConfig.column = col;
         }
 
         if (col === "col-accion") {
-          // ciclo actual y rotación para el próximo click
           const ordenAccion = ciclosAccion[cicloAccionIndex];
           cicloAccionIndex = (cicloAccionIndex + 1) % ciclosAccion.length;
-
           tareas = agruparYConcatenar(tareas, "accion", ordenAccion, "fecha");
-
         } else if (col === "col-estado") {
           const ordenEstado = ciclosEstado[cicloEstadoIndex];
           cicloEstadoIndex = (cicloEstadoIndex + 1) % ciclosEstado.length;
-  
           tareas = agruparYConcatenar(tareas, "estado", ordenEstado, "fecha");
-
         } else {
-          // columnas normales: asc/desc
           tareas.sort((a, b) => {
             let valA, valB;
             switch (col) {
@@ -255,37 +329,216 @@
         actualizarIndicadores();
       });
     });
-
   });
 
-  function seleccionarTarea(fila) {
+  // 📐 Renderizador Puro y Atómico basado en el Estado Global
+  function renderizarListaTareas() {
+    const lista = document.getElementById("lista-tareas");
+    lista.innerHTML = "";
 
-    if (document.getElementById('lista-tareas').classList.contains('disabled')) { 
-      return; 
+    if (tareas.length === 0) {
+      lista.innerHTML = '<p class="empty">No hay tareas pendientes para este mes.</p>';
+      return;
     }
 
-    document.querySelectorAll(".task-row.selected").forEach(el => el.classList.remove("selected"));
-    fila.classList.add("selected");
+    const inputBusqueda = document.getElementById("search-task-input");
+    const termino = inputBusqueda ? inputBusqueda.value.toLowerCase().trim() : "";
 
-    tareaSeleccionadaId = fila.dataset.id;  
-    tareaSeleccionadaUsuario = fila.dataset.usuario;
-    tareaSeleccionadaPlaylist = fila.dataset.playlist;
+    // Filtrado en tiempo de ejecución sin mutar el array de origen
+    const tareasFiltradas = tareas.filter(t => {
+      if (!termino) return true;
+      return t.titulo.toLowerCase().includes(termino) || t.album.toLowerCase().includes(termino);
+    });
 
-    console.log("Fila seleccionada:", tareaSeleccionadaId, "playlist seleccionada:", tareaSeleccionadaPlaylist);
+    if (tareasFiltradas.length === 0) {
+      lista.innerHTML = '<p class="empty">No se encontraron canciones que coincidan con la búsqueda.</p>';
+      return;
+    }
+
+    tareasFiltradas.forEach(t => {
+      const row = document.createElement("div");
+      row.className = "task-row";
+      row.dataset.id = t.id_tarea;
+      row.dataset.playlist = t.playlist_id;
+      row.dataset.usuario = t.usuario;
+      row.dataset.lote = t.id_lote || "";  
+      row.dataset.tipo = (t.tipo || "").toLowerCase().trim(); 
+
+      // Si el ID actual rendering coincide con los seleccionados por lote/manual, añadir clase
+      if (tareasSeleccionadasLoteIds.includes(t.id_tarea) || t.id_tarea === tareaSeleccionadaId) {
+        row.classList.add("selected");
+      }
+
+      const displayPos = (parseInt(t.posicion) === -1 || !t.posicion) ? "—" : t.posicion;
+
+      row.innerHTML = `
+        <span class="col-accion">${t.accion}</span>
+        <span class="col-posicion">${displayPos}</span>
+        <span class="col-title">
+          ${t.cover_url ? `<img src="${t.cover_url}" alt="Cover ${t.titulo}" class="task-cover">` : ""}
+          <div class="title-block">
+            <span class="titulo">${t.titulo}</span>
+            <small class="album">${t.album}</small>
+          </div>
+        </span>
+        <span class="col-playlist">${t.playlist}</span>
+        <span class="col-estado" data-estado="${t.estado}">${t.estado}</span>
+        <span class="col-usuario">${t.usuario}</span>
+        <span class="col-fecha">${t.fecha_ejecucion}</span>
+      `;
+      lista.appendChild(row);
+    });
+  }
+
+  // 🛡️ Mutador No Destructivo de Indicadores de Cabecera
+  function actualizarIndicadores() {
+    document.querySelectorAll(".tasks-header > span").forEach(header => {
+      const col = Array.from(header.classList).find(c => c.startsWith("col-"));
+      
+      // Control específico para la columna del título que contiene el input
+      if (col === "col-title") {
+        const textTarget = header.querySelector(".title-text-indicator");
+        if (!textTarget) return;
+
+        let baseLabel = textTarget.dataset.label;
+        if (col === sortConfig.column) {
+          textTarget.textContent = baseLabel + (sortConfig.asc ? " ↑" : " ↓");
+        } else {
+          textTarget.textContent = baseLabel;
+        }
+        return;
+      }
+
+      // Comportamiento regular para el resto de las columnas planas
+      let labelOriginal = header.dataset.label || header.textContent.trim();
+      if (!header.dataset.label) header.dataset.label = labelOriginal;
+
+      header.textContent = labelOriginal;
+
+      if (col === sortConfig.column) {
+        if (col === "col-accion") {
+          const ordenAccion = ciclosAccion[(cicloAccionIndex + ciclosAccion.length - 1) % ciclosAccion.length];
+          header.textContent = ` ⮕ ${ordenAccion[0]}`;
+        } else if (col === "col-estado") {
+          const ordenEstado = ciclosEstado[(cicloEstadoIndex + ciclosEstado.length - 1) % ciclosEstado.length];
+          header.textContent = ` ⮕ ${ordenEstado[0]}`;
+        } else {
+          header.textContent += sortConfig.asc ? " ↑" : " ↓";
+        }
+      }
+    });
+  }
+
+  function iluminarSeleccion(fila) {
+    const idLote = fila.dataset.lote ? fila.dataset.lote.trim() : "";
+    const tipoTarea = fila.dataset.tipo ? fila.dataset.tipo.toLowerCase().trim() : "";
+
+    document.querySelectorAll(".task-row").forEach(el => {
+      el.classList.remove("selected", "lote-highlight");
+    });
+
+    tareasSeleccionadasLoteIds = [];
+
+    if (idLote !== "" && idLote !== "None") {
+      // Leemos directamente del array global de tareas para recolectar IDs válidos
+      tareas.forEach(t => {
+        if (t.id_lote === idLote && t.tipo === tipoTarea) {
+          tareasSeleccionadasLoteIds.push(t.id_tarea);
+        }
+      });
+
+      // Iluminamos solo las filas visibles actuales en el DOM
+      document.querySelectorAll(".task-row").forEach(el => {
+        const elLote = el.dataset.lote ? el.dataset.lote.trim() : "";
+        const elTipo = el.dataset.tipo ? el.dataset.tipo.toLowerCase().trim() : "";
+        if (elLote === idLote && elTipo === tipoTarea) {
+          el.classList.add("selected");
+        }
+      });
+
+      const cntContainer = document.getElementById("contador-lote-container");
+      const cntNum = document.getElementById("contador-lote-num");
+      if (tareasSeleccionadasLoteIds.length > 1 && cntContainer && cntNum) {
+        cntNum.textContent = tareasSeleccionadasLoteIds.length;
+        cntContainer.style.display = "block";
+      }
+    }
+  }
+  
+  function toggleSeleccionManual(fila) {
+    const rawId = fila.dataset.id;
+    if (!rawId) return;
+
+    fila.classList.toggle("selected");
+
+    if (fila.classList.contains("selected")) {
+      if (!tareasSeleccionadasLoteIds.includes(rawId)) {
+        tareasSeleccionadasLoteIds.push(rawId);
+      }
+    } else {
+      tareasSeleccionadasLoteIds = tareasSeleccionadasLoteIds.filter(id => id !== rawId);
+    }
+
+    if (tareasSeleccionadasLoteIds.length > 0) {
+      tareaSeleccionadaId = tareasSeleccionadasLoteIds[tareasSeleccionadasLoteIds.length - 1];
+      tareaSeleccionadaPlaylist = fila.dataset.playlist;
+    } else {
+      tareaSeleccionadaId = null;
+      tareaSeleccionadaPlaylist = null;
+    }
+
+    const cntContainer = document.getElementById("contador-lote-container");
+    const cntNum = document.getElementById("contador-lote-num");
+    
+    if (tareasSeleccionadasLoteIds.length > 0 && cntContainer && cntNum) {
+      cntNum.textContent = tareasSeleccionadasLoteIds.length;
+      cntContainer.style.display = "block";
+    } else if (cntContainer) {
+      cntContainer.style.display = "none";
+    }
 
     const rateLimited = "{{ rate_limited|yesno:'true,false' }}" === "true";
-    document.getElementById("btn-sincronizar").disabled = rateLimited;
-    document.getElementById("btn-eliminar-tarea").disabled = false;
+    document.getElementById("btn-sincronizar").disabled = (tareasSeleccionadasLoteIds.length === 0 || rateLimited);
+    document.getElementById("btn-eliminar-tarea").disabled = (tareasSeleccionadasLoteIds.length === 0);
+  }
+
+  function seleccionarTarea(fila) {
+    if (document.getElementById('lista-tareas').classList.contains('disabled')) return;
+
+    const inputSwitch = document.getElementById("switch-lote");
+    const switchLote = inputSwitch ? inputSwitch.checked : false;
+
+    if (switchLote) {
+      tareaSeleccionadaId = fila.dataset.id;  
+      loteSeleccionadoId = fila.dataset.lote || null;
+      tipoTareaSeleccionada = fila.dataset.tipo || null;
+      tareaSeleccionadaUsuario = fila.dataset.usuario;
+      tareaSeleccionadaPlaylist = fila.dataset.playlist;
+
+      iluminarSeleccion(fila);
+
+      const rateLimited = "{{ rate_limited|yesno:'true,false' }}" === "true";
+      document.getElementById("btn-sincronizar").disabled = rateLimited;
+      document.getElementById("btn-eliminar-tarea").disabled = false;
+    } else {
+      toggleSeleccionManual(fila);
+    }
   }
 
   function deseleccionarTarea() {
-    document.querySelectorAll(".task-row.selected").forEach(el => el.classList.remove("selected"));
+    document.querySelectorAll(".task-row").forEach(el => el.classList.remove("selected", "lote-highlight"));
     tareaSeleccionadaId = null;
+    loteSeleccionadoId = null;
+    tipoTareaSeleccionada = null;
+    tareasSeleccionadasLoteIds = [];
     tareaSeleccionadaUsuario = null;
     tareaSeleccionadaPlaylist = null;
 
     document.getElementById("btn-sincronizar").disabled = true;
     document.getElementById("btn-eliminar-tarea").disabled = true;
+
+    const cntContainer = document.getElementById("contador-lote-container");
+    if (cntContainer) cntContainer.style.display = "none";
   }
 
   function volverAtras() {
@@ -307,7 +560,6 @@
     return cookieValue;
   }
 
-  // 👉 Eliminar tarea
   document.getElementById('btn-eliminar-tarea').addEventListener('click', async () => {
     if (!tareaSeleccionadaId) return;
 
@@ -325,67 +577,96 @@
       const data = await resp.json();
 
       if (data.ok) {
-        // 👉 Recargar toda la página para refrescar lista y mensajes
         window.location.reload();
       } else {
         console.error("Error al eliminar tarea:", data.error || "Respuesta inválida");
-        window.location.reload(); // también recarga para mostrar mensajes de error
+        window.location.reload();
       }
     } catch (e) {
       console.error("Error de red al eliminar la tarea:", e);
-      window.location.reload(); // recarga para mostrar mensajes de error
+      window.location.reload();
     }
   });
 
-
-  // 👉 Sincronizar tarea
   document.getElementById('btn-sincronizar').addEventListener('click', async () => {
-    if (!tareaSeleccionadaId || !tareaSeleccionadaPlaylist) return;
+      if (tareasSeleccionadasLoteIds.length === 0 || !tareaSeleccionadaPlaylist) return;
 
-    const btn = document.getElementById('btn-sincronizar');
-    btn.disabled = true;
-    btn.textContent = "Sincronizando…";
-    document.getElementById('lista-tareas').classList.add('disabled');
-    document.getElementById('btn-eliminar-tarea').disabled = true;
+      const btn = document.getElementById('btn-sincronizar');
+      const switchLote = document.getElementById("switch-lote").checked;
 
-    const csrfToken = getCookie('csrftoken');
-    const urlFinal = `/sincronizar/tareas/${tareaSeleccionadaPlaylist}/${tareaSeleccionadaId}/sincronizar/`;
+      btn.disabled = true;
+      btn.textContent = "Sincronizando…";
+      document.getElementById('lista-tareas').classList.add('disabled');
+      document.getElementById('btn-eliminar-tarea').disabled = true;
 
-    try {
-      const resp = await fetch(urlFinal, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrfToken }
-      });
+      const csrfToken = getCookie('csrftoken');
 
-      const data = await resp.json();
+      try {
+          const totalTareas = tareasSeleccionadasLoteIds.length;
+          
+          for (let i = 0; i < totalTareas; i++) {
+              const idTarea = tareasSeleccionadasLoteIds[i];
+              const filaDOM = document.querySelector(`.task-row[data-id="${idTarea}"]`);
+              
+              if (!filaDOM) {
+                  console.error(`[Orquestador JS] No se encontró la fila DOM para la Tarea ID: ${idTarea}`);
+                  continue; 
+              }
 
-      if (data.requires_auth) {
-        // 👉 Redirigir al login de Spotify
-        window.location.href = data.auth_url;
-        return;
+              const playlistDeEstaTarea = filaDOM.dataset.playlist; 
+              const tipoTarea = filaDOM.dataset.tipo ? filaDOM.dataset.tipo.toLowerCase().trim() : "";
+              const urlDinamica = `/sincronizar/tareas/${playlistDeEstaTarea}/${idTarea}/sincronizar/`;
+              
+              let cuerpoPayload = { ejecutar_como_lote: false };
+              let esOperacionLoteValida = false;
+              
+              if (switchLote) {
+                  if (tipoTarea === "agregar" || tipoTarea === "eliminar") {
+                      cuerpoPayload.ejecutar_como_lote = true;
+                      esOperacionLoteValida = true;
+                  } 
+                  else if (tipoTarea === "posicionar") {
+                      cuerpoPayload.ejecutar_como_lote = false;
+                      console.log(`[Orquestador JS] Tarea ${idTarea} es POSICIONAR. Forzando ejecución secuencial individual.`);
+                  }
+              }
+
+              console.log(`[Orquestador JS] Enviando Tarea ID: ${idTarea} | Playlist: ${playlistDeEstaTarea} | Tipo: ${tipoTarea.toUpperCase()}`);
+              
+              const resp = await fetch(urlDinamica, {
+                  method: 'POST',
+                  headers: {
+                      'X-CSRFToken': csrfToken,
+                      'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(cuerpoPayload)
+              });
+              
+              const data = await resp.json();
+
+              if (data.requires_auth) {
+                  window.location.href = data.auth_url;
+                  return; 
+              }
+
+              if (!data.ok) {
+                  console.error(`Error en Tarea ${idTarea}:`, data.error || "Respuesta inválida");
+                  break; 
+              }
+              
+              if (switchLote && esOperacionLoteValida) {
+                  console.log(`[Orquestador JS] El backend absorbió el lote completo en Python. Terminando iteración del cliente.`);
+                  break; 
+              }
+          }
+
+          window.location.reload();
+
+      } catch (e) {
+          console.error("Error crítico en la cola de ejecución:", e);
+          window.location.reload();
       }
-
-      if (data.ok || data.rate_limited) {
-        window.location.reload();
-      } else {
-        console.error("Error al sincronizar:", data.error || "Respuesta inválida");
-        // 👉 Restaurar estado si hubo error
-        btn.disabled = false;
-        btn.textContent = "Sincronizar ahora";
-        document.getElementById('lista-tareas').classList.remove('disabled');
-        window.location.reload();
-      }
-
-      await refrescarMensajes();
-    } catch (e) {
-      console.error("Error de red al sincronizar la tarea:", e);
-      // 👉 Restaurar estado si hubo error de red
-      btn.disabled = false;
-      btn.textContent = "Sincronizar ahora";
-      document.getElementById('lista-tareas').classList.remove('disabled');
-    }
   });
-
 
   async function refrescarMensajes() {
     try {
@@ -397,65 +678,47 @@
     }
   }
 
-  function renderizarListaTareas() {
-    const lista = document.getElementById("lista-tareas");
-    lista.innerHTML = "";
+  
 
-    if (tareas.length === 0) {
-      lista.innerHTML = '<p class="empty">No hay tareas pendientes para este mes.</p>';
-      return;
-    }
+  function sincronizarMetronomo() {
+      const display = document.getElementById('countdown-display');
+      if (!display) return;
 
-    tareas.forEach(t => {
-      
-      const row = document.createElement("div");
-      row.className = "task-row";
-      row.dataset.id = t.id_tarea;
-      row.dataset.playlist = t.playlist_id;
-      row.dataset.usuario = t.usuario;
+      let segundos = parseInt(display.getAttribute('data-seconds'), 10);
 
-      // Usamos parseInt para atrapar el -1 aunque venga como string
-      const displayPos = (parseInt(t.posicion) === -1 || !t.posicion) ? "—" : t.posicion;
+      const tick = setInterval(() => {
+          if (segundos <= 0) {
+              clearInterval(tick);
+              display.innerText = "Sincronizando...";
 
-      row.innerHTML = `
-        <span class="col-accion">${t.accion}</span>
-        <span class="col-posicion">${displayPos}</span>
-        <span class="col-title">
-          ${t.cover_url ? `<img src="${t.cover_url}" alt="Cover ${t.titulo}" class="task-cover">` : ""}
-          <div class="title-block">
-            <span class="titulo">${t.titulo}</span>
-            <small class="album">${t.album}</small>
-          </div>
-        </span>
-        <span class="col-playlist">${t.playlist}</span>
-        <span class="col-estado" data-estado="${t.estado}">${t.estado}</span>
-        <span class="col-usuario">${t.usuario}</span>
-        <span class="col-fecha">${t.fecha_ejecucion}</span>
-      `;
-      lista.appendChild(row);
-    });
+              fetch("{% url 'obtener_tiempo_ajax' %}")
+                  .then(response => response.json())
+                  .then(data => {
+                      if (data.segundos !== undefined) {
+                          display.setAttribute('data-seconds', data.segundos);
+                          sincronizarMetronomo(); 
+                      } else {
+                          setTimeout(() => window.location.reload(), 3000);
+                      }
+                  })
+                  .catch(() => {
+                      setTimeout(() => window.location.reload(), 3000);
+                  });
+              return;
+          }
+
+          segundos--;
+          
+          const h = Math.floor(segundos / 3600);
+          const m = Math.floor((segundos % 3600) / 60);
+          const s = segundos % 60;
+
+          display.innerText = `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+          display.setAttribute('data-seconds', segundos);
+      }, 1000);
   }
-  document.querySelectorAll(".tasks-header span").forEach(header => { header.dataset.label = header.textContent.trim(); });
-  function actualizarIndicadores() {
-    document.querySelectorAll(".tasks-header span").forEach(header => {
-      const col = Array.from(header.classList).find(c => c.startsWith("col-"));
-      header.textContent = header.dataset.label; // restaurar texto base
 
-      if (col === sortConfig.column) {
-        if (col === "col-accion") {
-          const ordenAccion = ciclosAccion[(cicloAccionIndex + ciclosAccion.length - 1) % ciclosAccion.length];
-          header.textContent = ` ⮕ ${ordenAccion[0]}`;
-        } else if (col === "col-estado") {
-          const ordenEstado = ciclosEstado[(cicloEstadoIndex + ciclosEstado.length - 1) % ciclosEstado.length];
-          header.textContent = ` ⮕ ${ordenEstado[0]}`;
-        } else {
-          header.textContent += sortConfig.asc ? " ↑" : " ↓";
-        }
-      }
-    });
-  }
+  document.addEventListener('DOMContentLoaded', sincronizarMetronomo);
 
 </script>
-
-
 {% endblock %}

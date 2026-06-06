@@ -38,7 +38,7 @@
             <span class="col-usuario">{{ log.usuario }}</span>
             <span class="col-fecha">{{ log.fecha }}</span>
             <span class="col-modulo">{{ log.modulo }}</span>
-            <span class="col-mensaje">{{ log.mensaje }}</span>
+            <span class="col-mensaje procesar-mensaje">{{ log.mensaje|linebreaksbr }}</span>
           </div>
 
         {% empty %}

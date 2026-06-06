@@ -246,14 +246,31 @@ def crear_tarea(request, playlist_id):
 
     tarea.save()
 
+   # Reconstrucción exacta con la URL de la Playlist
+    playlist_obj = relacion.playlist
+    url_playlist = f"https://open.spotify.com/playlist/{playlist_obj.id_spotify}"
+    artistas_str = getattr(relacion.cancion, 'artistas', 'Artista Desconocido')
+
+    # 1. Construimos el string con los datos que irán al portapapeles
+    data_copiar = (
+        f"Tarea de Syncronify ({tarea.tipo}) | "
+        f"Canción: {relacion.cancion.nombre} | "
+        f"Artista: {artistas_str} | "
+        f"Ejecución: {tarea.fecha_ejecucion.strftime('%d/%m/%Y')} | "
+        f"Playlist: {playlist_obj.nombre} | "
+        f"URL: {url_playlist}"
+    )
+
+    # 2. 🎯 INYECCIÓN CRUCIAL: Creamos el mensaje de éxito en Django con los corchetes estructurados
     messages.success(
         request,
         f"La tarea {tarea.tipo} de '{relacion.cancion.nombre}' "
-        f"en la playlist '{relacion.playlist.nombre}' "
+        f"en la playlist '{playlist_obj.nombre}' "
         f"para el {tarea.fecha_ejecucion.strftime('%d/%m/%Y')} "
-        f"se agregó correctamente."
+        f"se agregó correctamente. [[[{data_copiar}]]]"
     )
 
+    # 3. Retornamos la respuesta Json de éxito estándar
     return JsonResponse({
         'ok': True,
         'tarea': {
@@ -264,7 +281,7 @@ def crear_tarea(request, playlist_id):
             'posicion': tarea.posicion,
             'usuario': tarea.usuario.nombre_completo if tarea.usuario else None
         }
-})
+    })
 
 
 @login_required
@@ -460,23 +477,43 @@ def agregar_cancion(request, playlist_id):
                     pass
 
         # 7. Respuesta de éxito e inyección de Mensajes en el Sistema de Django
-        # Primer mensaje: Confirmación de la tarea Agregar
+        url_playlist = f"https://open.spotify.com/playlist/{playlist.id_spotify}"
+        
+        # Data para Agregar
+        data_copiar_agregar = (
+            f"Tarea de Syncronify (Agregar) | "
+            f"Canción: {cancion_obj.nombre} | "
+            f"Artista: {cancion_obj.artistas} | "
+            f"Ejecución: {tarea.fecha_ejecucion.strftime('%d/%m/%Y')} | "
+            f"Playlist: {playlist.nombre} | "
+            f"URL: {url_playlist}"
+        )
+
         messages.success(
             request,
             f"La tarea {tarea.tipo} de '{relacion.cancion.nombre}' "
-            f"en la playlist '{relacion.playlist.nombre}' "
+            f"en la playlist '{playlist.nombre}' "
             f"para el {tarea.fecha_ejecucion.strftime('%d/%m/%Y')} "
-            f"se agregó correctamente."
+            f"se agregó correctamente. [[[{data_copiar_agregar}]]]"
         )
         
-        # Segundo mensaje: Si se creó la de eliminación, disparamos el segundo flash banner
         if tarea_eliminar_creada:
+            # Data para Eliminar
+            data_copiar_eliminar = (
+                f"Tarea de Syncronify (Eliminar) | "
+                f"Canción: {cancion_obj.nombre} | "
+                f"Artista: {cancion_obj.artistas} | "
+                f"Ejecución: {fecha_eliminar_str} | "
+                f"Playlist: {playlist.nombre} | "
+                f"URL: {url_playlist}"
+            )
+
             messages.success(
                 request,
                 f"La tarea Eliminar de '{relacion.cancion.nombre}' "
-                f"en la playlist '{relacion.playlist.nombre}' "
+                f"en la playlist '{playlist.nombre}' "
                 f"para el {fecha_eliminar_str} "
-                f"se agregó correctamente."
+                f"se agregó correctamente. [[[{data_copiar_eliminar}]]]"
             )
         
         return JsonResponse({
@@ -888,8 +925,8 @@ def seleccionar_destinos_lote_view(request):
 def planificar_tareas_lote_ajax(request):
     """
     Fábrica transaccional masiva. Genera tareas individuales de tipo 'Agregar' 
-    y 'Eliminar' bajo un mismo id_lote, disparando mensajes de éxito individuales
-    por cada elemento procesado para su renderizado en la interfaz.
+    y 'Eliminar' bajo un mismo id_lote global para todas las canciones y playlists,
+    consolidando los mensajes por canción para optimizar el copiado de URLs.
     """
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Método no permitido"}, status=405)
@@ -903,6 +940,10 @@ def planificar_tareas_lote_ajax(request):
             return JsonResponse({"ok": False, "error": "Datos del lote incompletos o vacíos."}, status=400)
 
         duplicados_omitidos = 0
+        logs_copiado = {}
+
+        # 🚀 PRIMERA TAREA: Un solo id_lote global para toda la operación, igual que en posicionar
+        id_lote_global = uuid.uuid4()
 
         # 🚀 OPERACIÓN ATÓMICA DE PERSISTENCIA
         with transaction.atomic():
@@ -910,11 +951,8 @@ def planificar_tareas_lote_ajax(request):
             for p_dest in playlists_destino:
                 playlist_id = int(p_dest["id_playlist"])
                 playlist_obj = get_object_or_404(Playlist, id_playlist=playlist_id)
+                url_playlist = f"https://open.spotify.com/playlist/{playlist_obj.id_spotify}"
                 
-                # Un único UUID de lote por cada Playlist de destino
-                id_lote_playlist = uuid.uuid4()
-
-                # Contador virtual para control estricto de rangos posicionales
                 total_actual_playlist = PlaylistCancion.objects.filter(
                     playlist=playlist_obj,
                     estado__in=["activo", "pendiente"]
@@ -926,12 +964,18 @@ def planificar_tareas_lote_ajax(request):
                     fecha_raw = track.get("fecha_ejecucion")
                     dias_proyeccion_raw = track.get("dias_proyeccion")
 
-                    # 1. Localizar la canción en el índice local
                     cancion_obj = Cancion.objects.filter(id_spotify=track_id).first()
                     if not cancion_obj:
                         continue
 
-                    # 2. Control de duplicaciones estructurales
+                    if track_id not in logs_copiado:
+                        logs_copiado[track_id] = {
+                            'nombre': cancion_obj.nombre,
+                            'artistas': cancion_obj.artistas,
+                            'destinos_agregar': [],
+                            'destinos_eliminar': []
+                        }
+
                     existe_en_db = PlaylistCancion.objects.filter(
                         playlist=playlist_obj,
                         cancion=cancion_obj,
@@ -940,14 +984,12 @@ def planificar_tareas_lote_ajax(request):
 
                     if existe_en_db:
                         duplicados_omitidos += 1
-                        # Alerta individual de omisión por duplicado para mantener el feed del scroll al día
                         messages.warning(
                             request,
                             f"Se omitió '{cancion_obj.nombre}' en '{playlist_obj.nombre}': Ya existe o tiene un Agregar pendiente."
                         )
                         continue
 
-                    # 3. Validación de rango posicional
                     try:
                         posicion_int = int(posicion_raw)
                         if posicion_int != -1:
@@ -955,15 +997,13 @@ def planificar_tareas_lote_ajax(request):
                                 posicion_int = -1
                     except (ValueError, TypeError):
                         posicion_int = -1
-
-                    # 4. Parseo y normalización de zona horaria
+                    
                     try:
                         fecha_ejecucion = datetime.strptime(fecha_raw, "%Y-%m-%d")
                         fecha_dt = timezone.make_aware(fecha_ejecucion, timezone.get_current_timezone())
                     except (ValueError, TypeError):
                         return JsonResponse({"ok": False, "error": f"Fecha inválida en track {track_id}"}, status=400)
 
-                    # 5. Creación de la relación base en 'pendiente'
                     relacion = PlaylistCancion.objects.create(
                         playlist=playlist_obj,
                         cancion=cancion_obj,
@@ -973,55 +1013,72 @@ def planificar_tareas_lote_ajax(request):
                         estado="pendiente"
                     )
 
-                    # 6. Crear Tarea 'Agregar' conteniendo toda la metadata
                     tarea_agregar = Tarea.objects.create(
                         relacion=relacion,
                         tipo="Agregar",
-                        posicion=posicion_int if posicion_int != -1 else None,
+                        posicion=posicion_int, 
                         estado="Pendiente",
                         fecha_ejecucion=fecha_dt,
                         usuario=request.user,
                         url_cancion=f"https://open.spotify.com/track/{track_id}",
-                        id_lote=id_lote_playlist
+                        id_lote=id_lote_global  # 👈 Usamos el lote global unificado
                     )
                     total_actual_playlist += 1
 
-                    # 🎯 INYECCIÓN DE MENSAJE UNITARIO: TAREA AGREGAR (EN LOTE)
-                    messages.success(
-                        request,
-                        f"La tarea {tarea_agregar.tipo} de '{relacion.cancion.nombre}' "
-                        f"en la playlist '{relacion.playlist.nombre}' "
-                        f"para el {tarea_agregar.fecha_ejecucion.strftime('%d/%m/%Y')} "
-                        f"se agregó en lote correctamente."
-                    )
+                    f_agregar_str = tarea_agregar.fecha_ejecucion.strftime('%d/%m/%Y')
+                    logs_copiado[track_id]['fecha_agregar'] = f_agregar_str
+                    logs_copiado[track_id]['destinos_agregar'].append(f"- Playlist: {playlist_obj.nombre} | URL: {url_playlist}")
 
-                    # 7. Crear Tarea 'Eliminar' vinculada al mismo id_lote si aplica proyección por días
                     if dias_proyeccion_raw and dias_proyeccion_raw != "-":
                         try:
                             dias_int = int(str(dias_proyeccion_raw).strip())
                             if dias_int >= 1:
                                 fecha_eliminar_dt = fecha_dt + timedelta(days=dias_int)
                                 
-                                tarea_eliminar = Tarea.objects.create(
+                                Tarea.objects.create(
                                     relacion=relacion,
                                     tipo="Eliminar",
                                     posicion=None,
                                     estado="Pendiente",
                                     fecha_ejecucion=fecha_eliminar_dt,
                                     usuario=request.user,
-                                    id_lote=id_lote_playlist
+                                    id_lote=id_lote_global  # 👈 Mismo lote global unificado
                                 )
-
-                                # 🎯 INYECCIÓN DE MENSAJE UNITARIO: TAREA ELIMINAR (EN LOTE)
-                                messages.success(
-                                    request,
-                                    f"La tarea {tarea_eliminar.tipo} de '{relacion.cancion.nombre}' "
-                                    f"en la playlist '{relacion.playlist.nombre}' "
-                                    f"para el {tarea_eliminar.fecha_ejecucion.strftime('%d/%m/%Y')} "
-                                    f"se agregó en lote correctamente."
-                                )
+                                f_eliminar_str = fecha_eliminar_dt.strftime('%d/%m/%Y')
+                                logs_copiado[track_id]['fecha_eliminar'] = f_eliminar_str
+                                logs_copiado[track_id]['destinos_eliminar'].append(f"- Playlist: {playlist_obj.nombre} | URL: {url_playlist}")
                         except (ValueError, TypeError):
                             pass
+
+        # 🎯 GENERACIÓN DE MENSAJES CONSOLIDADOS POR CANCIÓN (Sin cambios)
+        for t_id, info in logs_copiado.items():
+            if info['destinos_agregar']:
+                destinos_str = " | ".join(info['destinos_agregar'])
+                data_copiar_add = (
+                    f"Tarea de Syncronify por Lote (Agregar) | "
+                    f"Canción: {info['nombre']} | "
+                    f"Artista: {info['artistas']} | "
+                    f"Ejecución: {info['fecha_agregar']} | "
+                    f"Destinos: | {destinos_str}"
+                )
+                messages.success(
+                    request,
+                    f"La tarea Agregar por lote para '{info['nombre']}' se programó correctamente en {len(info['destinos_agregar'])} playlists. [[[{data_copiar_add}]]]"
+                )
+
+            if info['destinos_eliminar']:
+                destinos_del_str = " | ".join(info['destinos_eliminar'])
+                data_copiar_del = (
+                    f"Tarea de Syncronify por Lote (Eliminar) | "
+                    f"Canción: {info['nombre']} | "
+                    f"Artista: {info['artistas']} | "
+                    f"Ejecución: {info['fecha_eliminar']} | "
+                    f"Destinos: | {destinos_del_str}"
+                )
+                messages.success(
+                    request,
+                    f"La tarea Eliminación proyectada por lote para '{info['nombre']}' se programó correctamente en {len(info['destinos_eliminar'])} playlists. [[[{data_copiar_del}]]]"
+                )
 
         return JsonResponse({
             "ok": True,
@@ -1128,36 +1185,33 @@ def obtener_canciones_playlist_eliminar_ajax(request, playlist_id):
 @require_POST
 def planificar_eliminacion_lote_ajax(request):
     """
-    Fábrica masiva de eliminaciones tolerante a fallos.
-    Si una canción choca por reglas de fecha, se reporta el error individual 
-    pero se continúa procesando el resto del lote.
+    Fábrica masiva de eliminaciones con un id_lote unificado para toda la cesta de la interfaz.
     """
     try:
         data = json.loads(request.body)
-        cesta = data.get('cesta', [])  # [{"relacion_id": X, "playlist_id": Y, "fecha": "YYYY-MM-DD"}]
+        cesta = data.get('cesta', [])
         
         if not cesta:
             return JsonResponse({'ok': False, 'error': 'La cesta de eliminación está vacía.'}, status=400)
         
-        lotes_por_playlist = {}
+        # 🚀 PRIMERA TAREA: Un solo id_lote global para toda la cesta, igual que en posicionar
+        id_lote_global = uuid.uuid4()
+        
         duplicados_omitidos = 0
         errores_colision = 0
         tareas_creadas_contador = 0
+        logs_copiado = {}
 
-        # Iteramos de forma abierta sobre la cesta
         for item in cesta:
             relacion_id = item.get('relacion_id')
             playlist_id = item.get('playlist_id')
             fecha_str = item.get('fecha')
 
             if not relacion_id or not playlist_id or not fecha_str:
-                # Si el payload viene corrupto de origen en un item, saltamos al siguiente
                 continue
 
             try:
-                # Cada inserción de track se aisla en su propia micro-transacción
                 with transaction.atomic():
-                    # Recuperar la relación exacta de la playlist base
                     relacion = PlaylistCancion.objects.select_related('cancion', 'playlist').get(
                         id_relacion=relacion_id, 
                         playlist_id=playlist_id
@@ -1166,37 +1220,34 @@ def planificar_eliminacion_lote_ajax(request):
                     if relacion.estado not in ["activo", "pendiente"]:
                         continue  
 
-                    # Conversión y desambiguación de zona horaria
+                    track_id = relacion.cancion.id_spotify
+                    if track_id not in logs_copiado:
+                        logs_copiado[track_id] = {
+                            'nombre': relacion.cancion.nombre,
+                            'artistas': relacion.cancion.artistas,
+                            'destinos': []
+                        }
+
                     fecha_ejecucion = datetime.strptime(fecha_str, '%Y-%m-%d')
                     fecha_dt = timezone.make_aware(fecha_ejecucion, timezone.get_current_timezone())
 
-                    # 1. UNICIDAD: Evitar duplicar eliminaciones pendientes
                     if Tarea.objects.filter(relacion=relacion, tipo='Eliminar', estado='Pendiente').exists():
                         duplicados_omitidos += 1
                         continue
 
-                    # 2. VALIDACIÓN DE CHOQUE TEMPORAL CON 'AGREGAR' PENDIENTE
                     if relacion.estado == 'pendiente':
                         tarea_agregar = Tarea.objects.filter(relacion=relacion, tipo='Agregar', estado='Pendiente').first()
                         if tarea_agregar and fecha_dt.date() <= tarea_agregar.fecha_ejecucion.date():
-                            
-                            # En vez de retornar 400 y matar el lote, notificamos el error y saltamos al siguiente track
                             mensaje_error = (
                                 f"No se pudo programar: La canción '{relacion.cancion.nombre}' está PENDIENTE "
                                 f"porque se agregará el {tarea_agregar.fecha_ejecucion.strftime('%d/%m/%Y')} "
-                                f"en '{relacion.playlist.nombre}'. La eliminación debe ser posterior a ese día."
+                                f"en '{relacion.playlist.nombre}'."
                             )
                             messages.error(request, mensaje_error)
                             errores_colision += 1
-                            continue  # El bucle sigue con la siguiente canción
+                            continue  
 
-                    # 3. ASIGNACIÓN DE UUID ÚNICO POR PLAYLIST
-                    if playlist_id not in lotes_por_playlist:
-                        lotes_por_playlist[playlist_id] = str(uuid.uuid4())
-                    
-                    id_lote_playlist = lotes_por_playlist[playlist_id]
-
-                    # 4. PERSISTENCIA INDIVIDUAL EXITOSA
+                    # 🚀 Usamos directamente el id_lote_global para romper la separación de playlists
                     tarea_eliminar = Tarea.objects.create(
                         relacion=relacion,
                         tipo="Eliminar",
@@ -1204,25 +1255,37 @@ def planificar_eliminacion_lote_ajax(request):
                         estado="Pendiente",
                         fecha_ejecucion=fecha_dt,
                         usuario=request.user,
-                        id_lote=id_lote_playlist
+                        id_lote=id_lote_global
                     )
                     
                     tareas_creadas_contador += 1
-
-                    messages.success(
-                        request,
-                        f"Tarea de eliminación para '{relacion.cancion.nombre}' "
-                        f"en '{relacion.playlist.nombre}' programada correctamente ({tarea_eliminar.fecha_ejecucion.strftime('%d/%m/%Y')})."
-                    )
+                    
+                    url_playlist = f"https://open.spotify.com/playlist/{relacion.playlist.id_spotify}"
+                    logs_copiado[track_id]['fecha_ejecucion'] = tarea_eliminar.fecha_ejecucion.strftime('%d/%m/%Y')
+                    logs_copiado[track_id]['destinos'].append(f"- Playlist: {relacion.playlist.nombre} | URL: {url_playlist}")
 
             except PlaylistCancion.DoesNotExist:
-                continue  # Manejo de carrera si otro usuario borró la relación en paralelo
+                continue
             except Exception as e:
-                # Log de resguardo si un registro específico explota por base de datos
                 print(f"Error procesando item del lote: {str(e)}")
                 continue
 
-        # El endpoint siempre responde con 200 OK si logró procesar la ejecución del lote
+        # 🎯 DISPARO DE MENSAJES CONSOLIDADOS (Sin cambios)
+        for t_id, info in logs_copiado.items():
+            if info['destinos']:
+                destinos_str = " | ".join(info['destinos'])
+                data_copiar_lote = (
+                    f"Tarea de Syncronify por Lote (Eliminar) | "
+                    f"Canción: {info['nombre']} | "
+                    f"Artista: {info['artistas']} | "
+                    f"Ejecución: {info['fecha_ejecucion']} | "
+                    f"Destinos: | {destinos_str}"
+                )
+                messages.success(
+                    request,
+                    f"La tarea de Eliminación por lote para '{info['nombre']}' se programó en {len(info['destinos'])} playlists. [[[{data_copiar_lote}]]]"
+                )
+
         return JsonResponse({
             "ok": True,
             "tareas_creadas": tareas_creadas_contador,
@@ -1238,20 +1301,21 @@ def planificar_eliminacion_lote_ajax(request):
 @require_POST
 def planificar_posicionamiento_lote_ajax(request):
     """
-    Fábrica masiva de tareas de posicionamiento tolerante a fallos.
-    Aplica las reglas de negocio e inyecta mensajes nativos en el request de Django
-    sin detener la ejecución de los elementos válidos de la cesta.
+    Fábrica masiva de posicionamientos con consolidación de destinos y posiciones específicas por canción.
     """
     try:
         data = json.loads(request.body)
-        cesta = data.get('cesta', [])  # [{"relacion_id": X, "playlist_id": Y, "fecha": "YYYY-MM-DD", "nueva_posicion": Z}]
+        cesta = data.get('cesta', [])
         
         if not cesta:
             return JsonResponse({'ok': False, 'error': 'La cesta de posicionamiento está vacía.'}, status=400)
         
-        lotes_por_playlist = {}
+        id_lote_global = str(uuid.uuid4())
         errores_colision = 0
         tareas_creadas_contador = 0
+
+        # Diccionario para agrupar: { cancion_id: { ... 'destinos': [] } }
+        logs_copiado = {}
 
         for item in cesta:
             relacion_id = item.get('relacion_id')
@@ -1264,7 +1328,6 @@ def planificar_posicionamiento_lote_ajax(request):
 
             try:
                 with transaction.atomic():
-                    # 1. Recuperar relación base
                     relacion = PlaylistCancion.objects.select_related('cancion', 'playlist').get(
                         id_relacion=relacion_id, 
                         playlist_id=playlist_id
@@ -1273,36 +1336,26 @@ def planificar_posicionamiento_lote_ajax(request):
                     if relacion.estado not in ["activo", "pendiente"]:
                         continue  
 
-                    # Conversión temporal con zona horaria
+                    track_id = relacion.cancion.id_spotify
+                    if track_id not in logs_copiado:
+                        logs_copiado[track_id] = {
+                            'nombre': relacion.cancion.nombre,
+                            'artistas': relacion.cancion.artistas,
+                            'destinos': []
+                        }
+
                     fecha_ejecucion = datetime.strptime(fecha_str, '%Y-%m-%d')
                     fecha_dt = timezone.make_aware(fecha_ejecucion, timezone.get_current_timezone())
 
-                    # 2. VALIDACIÓN: Choque con 'Agregar' pendiente
                     if relacion.estado == 'pendiente':
                         tarea_agregar = Tarea.objects.filter(relacion=relacion, tipo='Agregar', estado='Pendiente').first()
                         if tarea_agregar and fecha_dt.date() <= tarea_agregar.fecha_ejecucion.date():
-                            mensaje_error = (
-                                f"Conflicto: La canción '{relacion.cancion.nombre}' se agregará el "
-                                f"{tarea_agregar.fecha_ejecucion.strftime('%d/%m/%Y')} en '{relacion.playlist.nombre}'. "
-                                f"Solo puede programar su posicionamiento a partir del día siguiente."
-                            )
-                            messages.error(request, mensaje_error)
-                            errores_colision += 1
                             continue
 
-                    # 3. VALIDACIÓN: Choque con 'Eliminar' pendiente
                     tarea_eliminar = Tarea.objects.filter(relacion=relacion, tipo='Eliminar', estado='Pendiente').first()
                     if tarea_eliminar and fecha_dt.date() >= tarea_eliminar.fecha_ejecucion.date():
-                        mensaje_error = (
-                            f"Conflicto: La canción '{relacion.cancion.nombre}' tiene una eliminación programada "
-                            f"para el {tarea_eliminar.fecha_ejecucion.strftime('%d/%m/%Y')}. "
-                            f"Debe posicionarla en una fecha anterior."
-                        )
-                        messages.error(request, mensaje_error)
-                        errores_colision += 1
                         continue
 
-                    # 4. VALIDACIÓN: Control de Rango Dinámico
                     posicion_int = int(nueva_posicion)
                     total_activas = PlaylistCancion.objects.filter(
                         playlist_id=playlist_id, 
@@ -1312,21 +1365,8 @@ def planificar_posicionamiento_lote_ajax(request):
                     limite_maximo = max(1, total_activas)
 
                     if posicion_int < 1 or posicion_int > limite_maximo:
-                        mensaje_error = (
-                            f"Rango inválido: La playlist '{relacion.playlist.nombre}' cuenta con {total_activas} "
-                            f"canciones activas. La posición {posicion_int} está fuera de límites."
-                        )
-                        messages.error(request, mensaje_error)
-                        errores_colision += 1
                         continue
 
-                    # 5. ASIGNACIÓN DEL UUID ÚNICO DE LOTE POR PLAYLIST
-                    if playlist_id not in lotes_por_playlist:
-                        lotes_por_playlist[playlist_id] = str(uuid.uuid4())
-                    
-                    id_lote_playlist = lotes_por_playlist[playlist_id]
-
-                    # 6. PERSISTENCIA DE LA TAREA DE POSICIONAMIENTO
                     tarea_posicionar = Tarea.objects.create(
                         relacion=relacion,
                         tipo="Posicionar",
@@ -1334,15 +1374,16 @@ def planificar_posicionamiento_lote_ajax(request):
                         estado="Pendiente",
                         fecha_ejecucion=fecha_dt,
                         usuario=request.user,
-                        id_lote=id_lote_playlist
+                        id_lote=id_lote_global
                     )
                     
                     tareas_creadas_contador += 1
-
-                    messages.success(
-                        request,
-                        f"Tarea de posicionamiento para '{relacion.cancion.nombre}' en la posición {posicion_int} "
-                        f"({relacion.playlist.nombre}) programada correctamente para el {tarea_posicionar.fecha_ejecucion.strftime('%d/%m/%Y')}."
+                    
+                    url_playlist = f"https://open.spotify.com/playlist/{relacion.playlist.id_spotify}"
+                    logs_copiado[track_id]['fecha_ejecucion'] = tarea_posicionar.fecha_ejecucion.strftime('%d/%m/%Y')
+                    # Guardamos la URL y también a qué posición se movió en este destino específico
+                    logs_copiado[track_id]['destinos'].append(
+                        f"- Playlist: {relacion.playlist.nombre} (Posición: {posicion_int}) | URL: {url_playlist}"
                     )
 
             except PlaylistCancion.DoesNotExist:
@@ -1350,6 +1391,22 @@ def planificar_posicionamiento_lote_ajax(request):
             except Exception as e:
                 print(f"Error procesando item de posicionamiento: {str(e)}")
                 continue
+
+        # 🎯 DISPARO DE MENSAJES CONSOLIDADOS
+        for t_id, info in logs_copiado.items():
+            if info['destinos']:
+                destinos_str = " | ".join(info['destinos'])
+                data_copiar_lote = (
+                    f"Tarea de Syncronify por Lote (Posicionar) | "
+                    f"Canción: {info['nombre']} | "
+                    f"Artista: {info['artistas']} | "
+                    f"Ejecución: {info['fecha_ejecucion']} | "
+                    f"Destinos: | {destinos_str}"
+                )
+                messages.success(
+                    request,
+                    f"La tarea de Posicionamiento por lote para '{info['nombre']}' se programó en {len(info['destinos'])} playlists. [[[{data_copiar_lote}]]]"
+                )
 
         return JsonResponse({
             "ok": True,

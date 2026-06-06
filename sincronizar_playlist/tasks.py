@@ -1,42 +1,40 @@
-from celery import shared_task
 from django.utils import timezone
+from celery import shared_task
 from playlists.models import Tarea
 from conexion.models import CredencialesSpotify
 from django.db.models import F
 from .services import execute_tarea
 
-# 👉 Ejecuta una tarea individual
-@shared_task(bind=True, max_retries=5, default_retry_delay=300)  # 5 min entre reintentos
-def process_tarea(self, tarea_id):
+@shared_task(bind=True, max_retries=5, default_retry_delay=300)
+def process_tarea(self, tarea_id, ejecutar_como_lote=False):
     try:
-        # ✅ Desempaquetamos la tupla ignorando la telemetría que es para la vista Web
-        estado, _, _ = execute_tarea(tarea_id, source="celery")
+        # Pasa la bandera tal cual lo hace tu botón manual
+        estado, _, _ = execute_tarea(tarea_id, source="celery", ejecutar_como_lote=ejecutar_como_lote)
         return estado
 
     except Exception as exc:
-        # 👉 Registrar el intento y el error en la BD
-        tarea = Tarea.objects.get(id_tarea=tarea_id)
-        tarea.estado = "Error temporal"
-        tarea.mensaje_error = str(exc)
-        tarea.intentos = F("intentos") + 1
-        tarea.save(update_fields=["estado", "mensaje_error", "intentos"])
-
-        # 👉 Luego dejar que Celery reprograme el reintento
+        try:
+            tarea = Tarea.objects.get(id_tarea=tarea_id)
+            tarea.estado = "Error temporal"
+            tarea.mensaje_error = str(exc)
+            tarea.intentos = F("intentos") + 1
+            tarea.save(update_fields=["estado", "mensaje_error", "intentos"])
+        except Tarea.DoesNotExist:
+            pass
+        
         raise self.retry(exc=exc)
 
 
-# 👉 Revisa las tareas pendientes del día y las encola
 @shared_task
 def process_due_tasks():
     now = timezone.now()
 
-    # Verificar si hay rate limit global en las credenciales
+    # 1. Escudo de Rate Limit Global
     cred = CredencialesSpotify.objects.first()
     if cred and cred.rate_limit_until and cred.rate_limit_until > now:
-        # Si todavía estamos en rate limit, marcar todas las tareas del día como Reprogramadas
         Tarea.objects.filter(
             estado__in=["Pendiente", "Error temporal"],
-            fecha_ejecucion__date=now.date()
+            fecha_ejecucion__lte=now
         ).update(
             estado="Reprogramada",
             mensaje_error=f"Rate limit activo hasta {cred.rate_limit_until}",
@@ -44,11 +42,18 @@ def process_due_tasks():
         )
         return
 
-    # Si no hay rate limit, encolar todas las tareas del día que no estén completadas
+    # 2. Traer TODO lo que esté vencido o toque ejecutar YA
     pendientes = Tarea.objects.filter(
         estado__in=["Pendiente", "Error temporal", "Reprogramada"],
-        fecha_ejecucion__date=now.date()
-    )
+        fecha_ejecucion__lte=now
+    ).order_by('id_tarea')
 
+    # 3. Encolar sin mente: Si tiene lote, va como lote.
     for tarea in pendientes:
-        process_tarea.delay(tarea.id_tarea)
+        id_lote_actual = getattr(tarea, "id_lote", None)
+        
+        # Copia exacta del comportamiento del botón manual:
+        # Si la fila tiene un id_lote en la BD, se manda con True. Si no, con False.
+        tiene_lote = True if id_lote_actual else False
+        
+        process_tarea.delay(tarea.id_tarea, ejecutar_como_lote=tiene_lote)

@@ -131,3 +131,22 @@ class PlaylistGenero(models.Model):
     class Meta:
         db_table = 'playlist_genero'
         managed = False
+
+class PlaylistSnapshotHistorial(models.Model):
+    id_historial = models.AutoField(primary_key=True)
+    playlist = models.ForeignKey(
+        'Playlist',
+        db_column='id_playlist',
+        on_delete=models.CASCADE,
+        related_name='historial_snapshots'
+    )
+    snapshot_id = models.CharField(max_length=255)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'playlist_snapshots_historial'
+        managed = False 
+        ordering = ['-fecha_creacion']
+
+    def __str__(self):
+        return f"{self.playlist.nombre} - {self.snapshot_id[:8]}"
