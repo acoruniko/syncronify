@@ -135,7 +135,6 @@
         // Si soy yo mismo, deshabilito el switch para evitar el suicidio
         if (username === userLogueado) {
             checkActivo.disabled = true;
-            // Opcional: añadir un title para explicar por qué está deshabilitado
             checkActivo.parentElement.title = "No puedes desactivar tu propia cuenta de administrador";
         } else {
             checkActivo.disabled = false;
@@ -146,7 +145,6 @@
         document.getElementById('check-activo').checked = isActivo;
         actualizarEtiquetaEstado(isActivo);
    
-        // Convertimos el string "admin,usuario" en un array real
         rolesActuales = rol ? rol.split(',').map(r => r.trim()) : [];
 
         // Actualizamos visualmente las etiquetas de los roles
@@ -154,8 +152,6 @@
             const rolNombre = tag.innerText.toLowerCase().includes('admin') ? 'admin' : 
                             tag.innerText.toLowerCase().includes('estándar') ? 'usuario' : 'editor';
             
-            // Esta lógica depende de cómo nombres tus roles, lo ideal es usar un data-attribute:
-            // <div class="role-tag" data-role="admin" ...>
             const roleKey = tag.getAttribute('data-role') || rolNombre; 
 
             if (rolesActuales.includes(roleKey)) {
@@ -207,7 +203,6 @@
                 // --- RECUPERAMOS LA LÓGICA DEL TOPBAR ---
                 const topbarCenter = document.querySelector('.topbar-center');
                 if (topbarCenter) {
-                    // Inyectamos el formato exacto de mensajes de tu sistema
                     topbarCenter.innerHTML = `
                         <div class="messages-bar">
                             <div class="message ${data.tipo}">${data.mensaje}</div>
@@ -216,24 +211,19 @@
                     
                 }
 
-                // --- ACTUALIZACIÓN DE LA FILA (Para evitar el comportamiento raro) ---
+                // --- ACTUALIZACIÓN DE LA FILA ---
                 if (filaUsuarioSeleccionada) {
                     const nombreActual = document.getElementById('display-nombre').innerText;
                     
-                    // Actualizamos el onclick con los datos frescos del servidor
                     filaUsuarioSeleccionada.setAttribute('onclick', 
                         `seleccionarUsuario(this, '${usuarioSeleccionado}', '${nombreActual}', '${data.nuevo_activo}', '${data.nuevo_rol}')`
                     );
                     
-                    // Actualizamos la variable global de rol para las confirmaciones de borrado
                     rolSeleccionado = data.nuevo_rol;
                 }
 
             } else {
-                // Si el backend responde error (ej: intento de quitarse el admin)
                 alert("Atención: " + (data.mensaje || data.error));
-                // Opcional: recargar para resetear los botones visuales
-                // location.reload(); 
             }
         })
         .catch(error => {
@@ -264,7 +254,6 @@
             elemento.classList.add('active');
         }
 
-        // Enviamos el string limpio (todos los seleccionados)
         enviarActualizacion({ rol: rolesActuales.join(',') });
     }
 
@@ -283,7 +272,6 @@
         if (!confirmar1) return;
 
         // 3. Segunda confirmación (Lógica de Arquitectura: busca 'admin' en la lista de roles)
-        // rolSeleccionado puede ser "admin", "usuario" o "admin,usuario"
         const listaRolesJS = rolSeleccionado ? rolSeleccionado.split(',').map(r => r.trim()) : [];
         
         if (listaRolesJS.includes("admin")) {
@@ -291,7 +279,7 @@
             if (!confirmar2) return;
         }
 
-        // 4. Petición al backend con manejo de respuesta profesional
+        // 4. Petición al backend
         fetch("{% url 'eliminar_usuario_ajax' %}", {
             method: 'POST',
             headers: {
@@ -334,11 +322,9 @@
                     .then(response => response.json())
                     .then(data => {
                         if (data.segundos !== undefined) {
-                            // Actualizamos el atributo y reiniciamos la función
                             display.setAttribute('data-seconds', data.segundos);
                             sincronizarMetronomo(); 
                         } else {
-                            // Si algo falla, recargamos como plan B
                             setTimeout(() => window.location.reload(), 3000);
                         }
                     })
@@ -355,7 +341,6 @@
             const s = segundos % 60;
 
             display.innerText = `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
-            // Actualizamos el atributo para que si se reinicia sepa por dónde iba
             display.setAttribute('data-seconds', segundos);
         }, 1000);
     }

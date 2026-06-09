@@ -76,11 +76,11 @@ def recalcular_posiciones_tareas_pendientes(tarea_ejecutada, posicion_anterior_m
                     if condicion_pos or condicion_ant:
                         registrar_consecuencia(t, f"se modificó reduciendo sus posiciones (-{desplazamiento})")
 
-            # 🚀 AJUSTE MATEMÁTICO EN LOTE: Restamos la magnitud exacta del lote
+            # AJUSTE MATEMÁTICO EN LOTE: Restamos la magnitud exacta del lote
             queryset_base.filter(posicion__isnull=False, posicion__gt=N).update(posicion=F("posicion") - desplazamiento)
             queryset_base.filter(posicion_anterior__isnull=False, posicion_anterior__gt=N).update(posicion_anterior=F("posicion_anterior") - desplazamiento)
             
-            # 🛡️ ESCUDO DE NÚMEROS NEGATIVOS O LÍMITES INVALIDADOS POST-ELIMINACIÓN:
+            # ESCUDO DE NÚMEROS NEGATIVOS O LÍMITES INVALIDADOS POST-ELIMINACIÓN:
             # Si tras la reducción alguna posición cae por debajo del índice mínimo (1), la anulamos.
             tareas_invalidas = queryset_base.filter(posicion__isnull=False, posicion__lt=1)
             for t_inv in tareas_invalidas:

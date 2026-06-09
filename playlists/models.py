@@ -22,7 +22,6 @@ class Playlist(models.Model):
         on_delete=models.CASCADE
     )
 
-    # 🚀 ENLACE AL MUCHOS A MUCHOS USANDO MODELO EXPLÍCITO
     generos = models.ManyToManyField(
         'Genero',
         through='PlaylistGenero',

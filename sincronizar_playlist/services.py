@@ -9,12 +9,12 @@ from logs.models import LogEvento
 from playlists.models import PlaylistSnapshotHistorial
 from playlists.services import recalcular_posiciones_tareas_pendientes, conciliar_playlist_con_spotify
 from collections import defaultdict
+from django.db import transaction
 
 
 # =====================================================================
 # SERVICIOS AUXILIARES / HELPERS ATÓMICOS
 # =====================================================================
-
 def log_evento(nivel, usuario, modulo, mensaje, source="manual"):
     if source == "celery":
         LogEvento.objects.create(
@@ -24,8 +24,6 @@ def log_evento(nivel, usuario, modulo, mensaje, source="manual"):
             modulo=modulo,
             mensaje=mensaje
         )
-
-  # Asegúrate de importar tu nuevo modelo
 
 def _save_snapshot_sucesion(obj_playlist, nuevo_snap):
     """
@@ -61,15 +59,13 @@ def _save_snapshot_sucesion(obj_playlist, nuevo_snap):
 # =====================================================================
 # CAPA 1: PASAPORTE Y ALCABALAS DE CONCILIACIÓN
 # =====================================================================
-from django.db import transaction
-
 def _verificar_y_conciliar_playlist(tarea, playlist_obj, token, headers, source):
     """
     Escudo de lista blanca histórico puro.
     Utiliza bloqueo de base de datos para evitar que la ráfaga de tareas
     genere falsos positivos de actualización por lag de red.
     """
-    # 🔐 BLOQUEO DE SEGURIDAD: Obliga a las tareas del lote a pasar de una en una
+    # BLOQUEO DE SEGURIDAD: Obliga a las tareas del lote a pasar de una en una
     # Evita que la tarea 2 consulte a Spotify antes de que la tarea 1 guarde su snapshot.
     with transaction.atomic():
         playlist_bloqueada = Playlist.objects.select_for_update().get(id_playlist=playlist_obj.id_playlist)
@@ -86,7 +82,7 @@ def _verificar_y_conciliar_playlist(tarea, playlist_obj, token, headers, source)
             "mensaje": f"Sincronización limpia ({snapshot_spotify_real})."
         }
 
-        # 🛡️ REGLA ESTRUCTURAL DE LISTA BLANCA PURA
+        # REGLA ESTRUCTURAL DE LISTA BLANCA PURA
         # Buscamos en el historial de los últimos 15 si el snapshot ya es conocido por nuestro sistema
         existe_en_lista_blanca = PlaylistSnapshotHistorial.objects.filter(
             playlist=playlist_bloqueada,
@@ -263,7 +259,7 @@ def _ejecutar_accion_fisica_spotify(tarea, playlist_obj, headers, tipo, token, s
 
             sub_leader = lote_tareas[0]
 
-            # 🛠️ ALCABALA EN CALIENTE ORIGINAL (Sin mutaciones forzadas de estado en lote)
+            # ALCABALA EN CALIENTE ORIGINAL
             if id_playlist_local != playlist_obj.id_playlist:
                 url_snap = f"{url_base_spotify}{playlist_actual.id_spotify}?fields=snapshot_id"
                 try:
@@ -454,7 +450,7 @@ def execute_tarea(tarea_id, source="manual", ejecutar_como_lote=False, request=N
     token = get_spotify_token()
     headers = {"Authorization": f"Bearer {token}"}
 
-    # ─── CONTENEDORES PARA CONCILIACIÓN MULTI-PLAYLIST (CAPA 3) ───
+    # ─── CONTENEDORES PARA CONCILIACIÓN MULTI-PLAYLIST ───
     hubo_conciliacion_previa = False
     mensajes_conciliacion_acumulados = []
 
@@ -482,7 +478,7 @@ def execute_tarea(tarea_id, source="manual", ejecutar_como_lote=False, request=N
         # Ejecutamos el escudo transaccional para cada playlist involucrada en el lote
         for p_obj in playlists_a_verificar:
             hubo_cambio_p, msg_p = _verificar_y_conciliar_playlist(
-                tarea=tarea,  # Pasa la tarea líder para telemetría y logs
+                tarea=tarea, 
                 playlist_obj=p_obj,
                 token=token,
                 headers=headers,
@@ -493,7 +489,7 @@ def execute_tarea(tarea_id, source="manual", ejecutar_como_lote=False, request=N
                 if msg_p:
                     mensajes_conciliacion_acumulados.append(msg_p)
 
-        # 🎯 SI HUBO CAMBIOS FÍSICOS Y ES MANUAL, DESPACHAMOS CADA MENSAJE EN LA INTERFAZ
+        # SI HUBO CAMBIOS FÍSICOS Y ES MANUAL, DESPACHAMOS CADA MENSAJE EN LA INTERFAZ
         if hubo_conciliacion_previa and source == "manual" and request:
             from django.contrib import messages as django_messages
             for msg_final_conciliacion in mensajes_conciliacion_acumulados:
@@ -505,12 +501,12 @@ def execute_tarea(tarea_id, source="manual", ejecutar_como_lote=False, request=N
             tarea.relacion.refresh_from_db()
         playlist_obj.refresh_from_db()
 
-        # 🛡️ ESCUDO CELERY PARA LOTES: Si ya fue completada por un hermano del lote, salimos limpios
+        # ESCUDO CELERY PARA LOTES: Si ya fue completada por un hermano del lote, salimos limpios
         if tarea.estado == "Completado":
             log_evento("INFO", getattr(tarea.usuario, "username", None), "execute_tarea_skip", 
                        f"La tarea {tarea_id} ya fue completada previamente en su lote. Retornando con éxito.", source)
             
-            # 🔄 RECALCULO DE CONTADORES SEGURO PARA EL WORKER (Corte rápido)
+            # RECALCULO DE CONTADORES SEGURO PARA EL WORKER (Corte rápido)
             from playlists.models import Playlist, PlaylistCancion
             if id_lote_actual:
                 hermanos_completados = Tarea.objects.filter(id_lote=id_lote_actual, estado="Completado")
@@ -588,7 +584,7 @@ def execute_tarea(tarea_id, source="manual", ejecutar_como_lote=False, request=N
                     raise physical_error
 
         # =====================================================================
-        # 🚨 FRENO DE MANO PARA MENSAJES Y TRAZAS (LOTES Y UNITARIOS)
+        # FRENO DE MANO PARA MENSAJES Y TRAZAS (LOTES Y UNITARIOS)
         # =====================================================================
         tarea.refresh_from_db()
         id_lote_actual = getattr(tarea, "id_lote", None)
@@ -602,7 +598,7 @@ def execute_tarea(tarea_id, source="manual", ejecutar_como_lote=False, request=N
                 
                 sufijo_lote = " en lote." if (ejecutar_como_lote and id_lote_actual) else "."
                 
-                # 🎯 ESCENARIO A: Es un LOTE real en BD (Mismo id_lote)
+                # ESCENARIO A: Es un LOTE real en BD (Mismo id_lote)
                 # Aquí sí consumimos el storage porque procesamos N tareas en una SÓLA petición HTTP.
                 if id_lote_actual and ejecutar_como_lote:
                     tareas_a_notificar = Tarea.objects.filter(
@@ -626,8 +622,8 @@ def execute_tarea(tarea_id, source="manual", ejecutar_como_lote=False, request=N
                                 django_messages.success(request, msg_texto)
                                 mensajes_inyectados.add(msg_texto)
                 
-                # 🎯 ESCENARIO B: Tareas UNITARIAS ejecutadas de forma secuencial por el JS
-                # INYECCIÓN PURA. No leemos, no iteramos, no tocamos 'get_messages'. 
+                # ESCENARIO B: Tareas UNITARIAS ejecutadas de forma secuencial por el JS
+                # INYECCIÓN PURA.
                 # Dejamos que Django lo guarde en la cookie/sesión nativa. Se acumularán solos.
                 else:
                     if tarea.estado == "Completado" and tarea.relacion and tarea.relacion.cancion and tarea.relacion.playlist:
@@ -648,7 +644,7 @@ def execute_tarea(tarea_id, source="manual", ejecutar_como_lote=False, request=N
                         msg_log = f"La tarea {tipo_str} de '{h.relacion.cancion.nombre}' en la playlist '{h.relacion.playlist.nombre}' se ejecutó correctamente."
                         log_evento("INFO", getattr(h.usuario, "username", None), f"execute_tarea_{h.tipo.strip().lower()}_status", msg_log, source)
 
-            # 🔄 RECALCULO DE CONTADORES FÍSICOS
+            # RECALCULO DE CONTADORES FÍSICOS
             if id_lote_actual:
                 hermanos_completados = Tarea.objects.filter(id_lote=id_lote_actual, estado="Completado")
                 playlist_ids_afectadas = set(h.relacion.playlist_id for h in hermanos_completados if h.relacion and h.relacion.playlist_id)

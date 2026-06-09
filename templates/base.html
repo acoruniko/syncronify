@@ -69,7 +69,7 @@
 
     {% if rate_limited %}
     <div id="rate-limit-popup" class="rate-limit-popup">
-        ⏳ Penalización de la API activa: espera <span id="countdown-top">{{ seconds_remaining }}</span>s
+        Penalización de la API activa: espera <span id="countdown-top">{{ seconds_remaining }}</span>s
     </div>
     {% endif %}
 
@@ -111,7 +111,7 @@
         }, 1000);
       }
       
-      // 🚀 MOTOR REACTIVO PARA PROCESAR DATA DEL PORTAPAPELES (Vigila cambios en tiempo real)
+      // MOTOR REACTIVO PARA PROCESAR DATA DEL PORTAPAPELES (Vigila cambios en tiempo real)
       document.addEventListener("DOMContentLoaded", () => {
           const regexDelimitador = /\[\[\[([\s\S]*?)\]\]\]/;
 

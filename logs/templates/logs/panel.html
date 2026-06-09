@@ -105,7 +105,6 @@ function ordenar(campo) {
   let rotation = parseInt(params.get("rotation") || "0");
 
   if (campo === "nivel") {
-    // 👉 cada click incrementa la rotación
     rotation = (rotation + 1) % 3;
     params.set("order_by", "nivel");
     params.set("rotation", rotation);

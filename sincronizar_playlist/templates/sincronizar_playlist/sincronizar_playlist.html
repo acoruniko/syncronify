@@ -217,7 +217,6 @@
       };
     });
 
-    // 🔍 Capturar eventos del input buscador de forma segura
     const inputBusqueda = document.getElementById("search-task-input");
     if (inputBusqueda) {
       inputBusqueda.addEventListener("click", (e) => {
@@ -268,10 +267,8 @@
     // Delegación y manejo limpio de clicks en el header
     document.querySelectorAll(".tasks-header span").forEach(header => {
       header.addEventListener("click", (e) => {
-        // Si el click vino desde adentro del input, salir inmediatamente
         if (e.target.id === "search-task-input") return;
 
-        // Extraer la columna real a partir de sus clases
         const col = Array.from(header.classList).find(c => c.startsWith("col-"));
         if (!columnasOrdenables.includes(col)) return;
 
@@ -331,7 +328,6 @@
     });
   });
 
-  // 📐 Renderizador Puro y Atómico basado en el Estado Global
   function renderizarListaTareas() {
     const lista = document.getElementById("lista-tareas");
     lista.innerHTML = "";
@@ -343,8 +339,6 @@
 
     const inputBusqueda = document.getElementById("search-task-input");
     const termino = inputBusqueda ? inputBusqueda.value.toLowerCase().trim() : "";
-
-    // Filtrado en tiempo de ejecución sin mutar el array de origen
     const tareasFiltradas = tareas.filter(t => {
       if (!termino) return true;
       return t.titulo.toLowerCase().includes(termino) || t.album.toLowerCase().includes(termino);
@@ -364,7 +358,6 @@
       row.dataset.lote = t.id_lote || "";  
       row.dataset.tipo = (t.tipo || "").toLowerCase().trim(); 
 
-      // Si el ID actual rendering coincide con los seleccionados por lote/manual, añadir clase
       if (tareasSeleccionadasLoteIds.includes(t.id_tarea) || t.id_tarea === tareaSeleccionadaId) {
         row.classList.add("selected");
       }
@@ -390,12 +383,11 @@
     });
   }
 
-  // 🛡️ Mutador No Destructivo de Indicadores de Cabecera
+  // Mutador No Destructivo de Indicadores de Cabecera
   function actualizarIndicadores() {
     document.querySelectorAll(".tasks-header > span").forEach(header => {
       const col = Array.from(header.classList).find(c => c.startsWith("col-"));
       
-      // Control específico para la columna del título que contiene el input
       if (col === "col-title") {
         const textTarget = header.querySelector(".title-text-indicator");
         if (!textTarget) return;
@@ -409,7 +401,6 @@
         return;
       }
 
-      // Comportamiento regular para el resto de las columnas planas
       let labelOriginal = header.dataset.label || header.textContent.trim();
       if (!header.dataset.label) header.dataset.label = labelOriginal;
 
@@ -440,14 +431,12 @@
     tareasSeleccionadasLoteIds = [];
 
     if (idLote !== "" && idLote !== "None") {
-      // Leemos directamente del array global de tareas para recolectar IDs válidos
       tareas.forEach(t => {
         if (t.id_lote === idLote && t.tipo === tipoTarea) {
           tareasSeleccionadasLoteIds.push(t.id_tarea);
         }
       });
 
-      // Iluminamos solo las filas visibles actuales en el DOM
       document.querySelectorAll(".task-row").forEach(el => {
         const elLote = el.dataset.lote ? el.dataset.lote.trim() : "";
         const elTipo = el.dataset.tipo ? el.dataset.tipo.toLowerCase().trim() : "";
@@ -561,19 +550,15 @@
   }
 
   document.getElementById('btn-eliminar-tarea').addEventListener('click', async () => {
-    // 1. Validar que existan elementos seleccionados en el estado global
     if (tareasSeleccionadasLoteIds.length === 0) return;
 
     const totalTareas = tareasSeleccionadasLoteIds.length;
-    
-    // 2. Mensaje dinámico y limpio adaptado a la magnitud de la selección
     const confirmacion = confirm(`¿Está seguro de eliminar las ${totalTareas} tareas seleccionadas?`);
     if (!confirmacion) return;
 
     const btnEliminar = document.getElementById('btn-eliminar-tarea');
     const btnSincronizar = document.getElementById('btn-sincronizar');
     
-    // 3. Bloqueo de UI preventivo (Anti-Double-Click)
     btnEliminar.disabled = true;
     btnSincronizar.disabled = true;
     btnEliminar.textContent = "Eliminando…";
@@ -583,11 +568,9 @@
     let todasBorradasOk = true;
 
     try {
-      // 4. Procesamiento secuencial del lote de eliminación
+      // Procesamiento secuencial del lote de eliminación
       for (let i = 0; i < totalTareas; i++) {
         const idTarea = tareasSeleccionadasLoteIds[i];
-        
-        // Reemplazo dinámico sobre tu URL estándar de Django
         const urlEliminar = "{% url 'eliminar_tarea' 0 %}".replace("0", idTarea);
         
         console.log(`[Orquestador JS] Eliminando Tarea ID: ${idTarea} (${i + 1}/${totalTareas})`);
@@ -602,11 +585,11 @@
         if (!data.ok) {
           console.error(`Error al eliminar Tarea ID ${idTarea}:`, data.error || "Respuesta inválida");
           todasBorradasOk = false;
-          break; // Rompemos el ciclo si el backend reporta un fallo crítico
+          break; 
         }
       }
 
-      // 5. Asentamiento final y recarga
+      //Asentamiento final y recarga
       if (todasBorradasOk) {
         console.log(`[Orquestador JS] Lote de ${totalTareas} tareas eliminado con éxito.`);
       }

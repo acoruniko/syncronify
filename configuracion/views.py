@@ -19,7 +19,6 @@ def configuracion_home_view(request):
         return HttpResponseForbidden("Acceso denegado.")
     
     # 1. Obtener la tarea y el schedule
-    # Aseguramos que el periodo sea HOURS
     schedule_maestro, _ = IntervalSchedule.objects.get_or_create(
         id=1, 
         defaults={'every': 1, 'period': IntervalSchedule.HOURS}
@@ -45,7 +44,6 @@ def configuracion_home_view(request):
     # 3. LÓGICA DE TIEMPO REAL (Conversión a Horas)
     ahora = timezone.now()
     
-    # CAMBIO CLAVE: Multiplicamos por 3600 porque 'every' ahora representa HORAS
     intervalo_segundos = tarea.interval.every * 3600
     
     referencia = tarea.last_run_at if tarea.last_run_at else ahora
@@ -135,7 +133,7 @@ def actualizar_usuario_ajax(request):
             "status": "ok",
             "mensaje": msg_personalizado,
             "tipo": "success",
-            "nuevo_rol": usuario.rol, # IMPORTANTE para el JS
+            "nuevo_rol": usuario.rol,
             "nuevo_activo": 'true' if usuario.is_active else 'false' # IMPORTANTE para el JS
         })
     
@@ -162,9 +160,7 @@ def eliminar_usuario_ajax(request):
         if usuario.last_login is None:
             user_id = usuario.id_usuario
             with connection.cursor() as cursor:
-                # Borramos primero en sesiones por si acaso el registro se creó al registrarse
                 cursor.execute("DELETE FROM sesiones WHERE id_usuario = %s", [user_id])
-                # Borramos el usuario directamente de la tabla
                 cursor.execute("DELETE FROM usuarios WHERE id_usuario = %s", [user_id])
 
             msg = f'El usuario "{username_target}" ha sido eliminado (datos purgados).'
@@ -196,7 +192,6 @@ def eliminar_usuario_ajax(request):
     
 @login_required  
 def obtener_tiempo_restante_ajax(request):
-    # Reutilizamos la lógica que ya tienes en configuracion_home_view
     tarea = PeriodicTask.objects.get(name='syncronify_main_task')
     ahora = timezone.now()
     intervalo_segundos = tarea.interval.every * 3600

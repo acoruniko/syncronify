@@ -75,8 +75,9 @@
 </div>
 
 <script>
+
   // ==========================================================================
-  // 📋 ESTADO GLOBAL DEL LOTE
+  // ESTADO GLOBAL DEL LOTE
   // ==========================================================================
   let loteCanciones = []; // Aquí guardaremos los objetos de tracks agregados
 
@@ -94,7 +95,7 @@
   });
 
   // ==========================================================================
-  // 🛠️ VALIDACIÓN Y CAPTURA DE TRACKS (SPOTIFY API VIA AJAX)
+  // VALIDACIÓN Y CAPTURA DE TRACKS (SPOTIFY API VIA AJAX)
   // ==========================================================================
   async function procesarCapturaUrl() {
     const inputUrl = document.getElementById('url-lote-input');
@@ -102,7 +103,6 @@
 
     const urlClean = inputUrl.value.replace(/\s+/g, '').trim();
 
-    // 🎯 VALIDACIÓN ELÁSTICA IDÉNTICA A TU NEGOCIO
     let trackId = null;
     if (urlClean.includes("spotify.com") || urlClean.includes("googleusercontent.com")) {
       if (urlClean.includes("/track/")) {
@@ -116,16 +116,15 @@
       if (esIdValidoSpotify) trackId = urlClean;
     }
 
-    // 🚀 CONTROL ANTI-DUPLICADOS PARA URL / ID DIRECTO
+    // CONTROL ANTI-DUPLICADOS PARA URL / ID DIRECTO
     const yaExisteEnLote = loteCanciones.some(item => item.id_spotify === trackId);
 
-    // Reporte de error nativo usando tu estándar HTML5
     if (urlClean === '') {
       inputUrl.setCustomValidity("La URL de la canción no puede estar vacía.");
     } else if (!trackId) {
       inputUrl.setCustomValidity("URL o ID incorrecto. Debe ser un enlace válido de Spotify.");
     } else if (yaExisteEnLote) {
-      // 🎯 Si el ID ya existe en el array, disparamos la validación nativa aquí
+      // Si el ID ya existe en el array, disparamos la validación nativa aquí
       inputUrl.setCustomValidity("Esta canción ya ha sido agregada al lote actual.");
     } else {
       inputUrl.setCustomValidity("");
@@ -153,7 +152,7 @@
       
       if (data.ok) {
         agregarTrackAlCarrito(data.track);
-        inputUrl.value = ''; // Limpiamos caja al tener éxito
+        inputUrl.value = ''; 
       } else {
         alert(data.error || "No se pudo extraer la canción.");
       }
@@ -166,7 +165,7 @@
   }
 
 // ==========================================================================
-// 🛒 INYECCIÓN DINÁMICA AL CARRITO DE COMPRAS (DOM) - CON CONTROL POSICIONAL
+// INYECCIÓN DINÁMICA AL CARRITO DE COMPRAS (DOM) - CON CONTROL POSICIONAL
 // ==========================================================================
 function agregarTrackAlCarrito(track) {
   const contenedor = document.getElementById('contenedor-lote-dinamico');
@@ -178,7 +177,6 @@ function agregarTrackAlCarrito(track) {
   const timestampId = Date.now();
   const hoyISO = new Date().toISOString().split('T')[0];
 
-  // Creamos la fila manteniendo fielmente tus clases estéticas de song-row
   const row = document.createElement('div');
   row.className = 'lote-song-row-item'; 
   row.style.display = 'flex';
@@ -186,7 +184,6 @@ function agregarTrackAlCarrito(track) {
   row.style.cursor = 'default';
   row.dataset.loteId = timestampId;
 
-  // Renderizamos el HTML base (el select va vacío y lo poblamos programáticamente)
   row.innerHTML = `
     <div style="flex: 3.7; display: flex; align-items: center; gap: 10px; overflow: hidden;">
       ${track.cover_url ? `<img src="${track.cover_url}" class="song-cover" style="width:40px; height:40px; border-radius:4px;">` : ''}
@@ -219,7 +216,7 @@ function agregarTrackAlCarrito(track) {
   // Capturamos el select recién inyectado
   const selectPosicion = row.querySelector('.lote-posicion');
 
-  // ⚡ Aplicamos tu validador nativo de caracteres en caliente al input de días inyectado
+  // Aplicamos tu validador nativo de caracteres en caliente al input de días inyectado
   const inputDiasInyectado = row.querySelector('.lote-dias');
   inputDiasInyectado.addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/\D/g, '');
@@ -229,22 +226,19 @@ function agregarTrackAlCarrito(track) {
 
   contenedor.appendChild(row);
 
-  // Guardamos la metadata inicial en tu array global (asumimos por defecto -1 "Último")
   loteCanciones.push({
     loteId: timestampId,
     id_spotify: track.id_spotify,
     titulo: track.titulo,
-    posicion: -1 // Campo clave para la siguiente pantalla de tareas
+    posicion: -1 
   });
 
   actualizarContadorLote();
-
-  // 🔄 RECALIBRACIÓN EN CALIENTE DE TODAS LAS POSICIONES DEL LOTE
   recalcularEstructuraPosicionesLote();
 }
 
 // ==========================================================================
-// 🔄 MOTOR DE PROPAGACIÓN BINARIA (1 / ÚLTIMO) PARA EL LOTE
+// MOTOR DE PROPAGACIÓN BINARIA (1 / ÚLTIMO) PARA EL LOTE
 // ==========================================================================
 function recalcularEstructuraPosicionesLote() {
     const contenedor = document.getElementById('contenedor-lote-dinamico');
@@ -257,14 +251,13 @@ function recalcularEstructuraPosicionesLote() {
         const select = fila.querySelector('.lote-posicion');
         if (!select) return;
 
-        // Limpiamos opciones previas
         select.innerHTML = "";
 
         const loteId = parseInt(fila.dataset.loteId);
         const metaDataTrack = loteCanciones.find(x => x.loteId === loteId);
 
         if (index === 0) {
-            // ⭐ LA PRIMERA FILA ES EL MAESTRO (Solo elige entre 1 y Último)
+            // LA PRIMERA FILA ES EL MAESTRO (Solo elige entre 1 y Último)
             select.disabled = false;
 
             const optUno = document.createElement("option");
@@ -277,16 +270,14 @@ function recalcularEstructuraPosicionesLote() {
             optUltimo.textContent = "Último";
             select.appendChild(optUltimo);
 
-            // Seteamos el valor que ya tenía en memoria, por defecto "-1" (Último)
             select.value = metaDataTrack ? metaDataTrack.posicion : "-1";
 
-            // Atamos el evento de cambio
             select.onchange = null;
             select.onchange = function() {
                 propagarPosicionesBinarias(parseInt(this.value));
             };
         } else {
-            // 🔒 LAS FILAS HIJAS SE BLOQUEAN DEFINITIVAMENTE
+            // LAS FILAS HIJAS SE BLOQUEAN DEFINITIVAMENTE
             select.disabled = true;
         }
     });
@@ -348,7 +339,7 @@ function removerTrackDelCarrito(loteId) {
     if (contenedor && contenedor.children.length === 0) {
         contenedor.innerHTML = `<p class="empty" id="lote-vacio-msg">No has agregado canciones al lote actual. Usa el panel de la derecha.</p>`;
     } else {
-        // 🎯 Si aún quedan elementos, recalculamos quién es el maestro y reorganizamos las posiciones
+        // Si aún quedan elementos, recalculamos quién es el maestro y reorganizamos las posiciones
         recalcularEstructuraPosicionesLote();
     }
 }
@@ -367,7 +358,7 @@ function getCookie(name) {
 }
 
 // ==========================================================================
-// 🔍 MOTOR DE BÚSQUEDA ACELERADA EN CATÁLOGO LOCAL (BD)
+// MOTOR DE BÚSQUEDA ACELERADA EN CATÁLOGO LOCAL (BD)
 // ==========================================================================
 let buscadorTimeout = null;
 
@@ -384,7 +375,6 @@ function buscarCatalogoLocal() {
         return;
     }
     
-    // Debounce mecánico de 300ms para control de flujo I/O de la base de datos
     buscadorTimeout = setTimeout(async () => {
         try {
             contenedorResultados.innerHTML = '<p class="text-center p-2" style="font-size: 0.85rem; color: #1db954;">Buscando en index local...</p>';
@@ -407,7 +397,6 @@ function buscarCatalogoLocal() {
                 const divElement = document.createElement('div');
                 divElement.className = 'resultado-local-item';
                 
-                // 🎯 PASAMOS LA REFERENCIA DEL ELEMENTO DEL DOM
                 divElement.onclick = () => {
                     seleccionarTrackLocal(track, divElement);
                 };
@@ -434,7 +423,7 @@ function buscarCatalogoLocal() {
  * Pasa el track de la BD local directo a la cola dinámica del lote masivo
  */
 function seleccionarTrackLocal(track, elementoRow) {
-    // 🚀 CONTROL ANTI-DUPLICADOS
+    //CONTROL ANTI-DUPLICADOS
     const yaExisteEnLote = loteCanciones.some(item => item.id_spotify === track.id_spotify);
     
     if (yaExisteEnLote) {
@@ -443,30 +432,24 @@ function seleccionarTrackLocal(track, elementoRow) {
         // Evitamos duplicar la burbuja si spamean el click
         if (document.getElementById('burbuja-duplicado')) return;
 
-        // 📐 OBTENER COORDENADAS EXACTAS DE LA FILA EN LA PANTALLA
+        // OBTENER COORDENADAS EXACTAS DE LA FILA EN LA PANTALLA
         const rect = elementoRow.getBoundingClientRect();
 
-        // Creamos la burbuja nativa clonada de Chrome
         const burbuja = document.createElement('div');
         burbuja.id = 'burbuja-duplicado';
         burbuja.className = 'burbuja-alerta-local';
         burbuja.innerText = 'Selecciona otra canción. Esta ya está en el lote.';
 
-        // Inyectamos el soporte para el borde de la flecha
         const bordeFlecha = document.createElement('div');
         bordeFlecha.className = 'burbuja-alerta-local-borde-flecha';
         burbuja.appendChild(bordeFlecha);
 
-        // 🎯 CLAVAMOS LA POSICIÓN FIXED: Justo debajo de la fila cliqueada
-        // Sumamos el scroll actual de la página para que sea ultra preciso
         burbuja.style.position = 'fixed';
         burbuja.style.left = `${rect.left + 20}px`; 
         burbuja.style.top = `${rect.bottom}px`; 
 
-        // 🚀 INYECCIÓN AL BODY: Rompe cualquier restricción de overflow del contenedor
         document.body.appendChild(burbuja);
 
-        // Disparo de animación CSS
         requestAnimationFrame(() => {
             burbuja.classList.add('show');
         });
@@ -479,10 +462,9 @@ function seleccionarTrackLocal(track, elementoRow) {
             }, 100);
         }, 2500);
 
-        return; // Bloqueo de inserción
+        return;
     }
 
-    // Feedback de éxito original si la canción es nueva
     elementoRow.classList.add('seleccionado-temp');
     setTimeout(() => elementoRow.classList.remove('seleccionado-temp'), 400);
 
@@ -494,7 +476,6 @@ function seleccionarTrackLocal(track, elementoRow) {
  * y redirige a la pantalla de selección de playlists de destino.
  */
 function guardarYContinuarALoteDestinos() {
-    // Recorremos el DOM para capturar los valores actuales en caliente de cada fila
     const cancionesConDataFormulario = loteCanciones.map(track => {
         const filaDOM = document.querySelector(`[data-lote-id="${track.loteId}"]`);
         if (filaDOM) {
@@ -512,10 +493,8 @@ function guardarYContinuarALoteDestinos() {
         return track;
     });
 
-    // 💾 Volcamos el estado exacto estructurado a LocalStorage
     localStorage.setItem('syncronify_lote_canciones', JSON.stringify(cancionesConDataFormulario));
 
-    // 🚀 Redirección hacia la URL de Django que renderiza tu nueva plantilla
     window.location.href = "{% url 'seleccionar_destinos_lote' %}"; 
 }
 

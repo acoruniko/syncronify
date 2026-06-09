@@ -236,7 +236,7 @@
 
 <script>
   // ==========================================================================
-  // 📋 VARIABLES GLOBALES Y CONFIGURACIÓN INICIAL
+  // VARIABLES GLOBALES Y CONFIGURACIÓN INICIAL
   // ==========================================================================
   let canciones = JSON.parse('{{ canciones_json|escapejs }}');
   const playlistId = {{ playlist.id_playlist }};
@@ -250,7 +250,7 @@
   let modoAgregarCancion = false;
 
   // ==========================================================================
-  // 🔌 INITIALIZATION & DOM READY LISTENERS
+  // INITIALIZATION & DOM READY LISTENERS
   // ==========================================================================
   document.addEventListener("DOMContentLoaded", () => {
     // Listener: Agregar Tarea
@@ -283,22 +283,12 @@
             const fecha = document.getElementById('fecha-ejecucion').value;
             const posicion = document.getElementById('posicion').value;
 
-            // 🎯 1. VALIDACIÓN EN CALIENTE: Solo si estamos agregando una canción nueva
             if (modoAgregarCancion) {
                 const inputUrl = document.getElementById('url-cancion');
                 const inputDias = document.getElementById('dias-proyeccion');
 
                 if (inputUrl) {
-                    // 🧼 Limpiamos los espacios igual que en tus pruebas
                     const urlClean = inputUrl.value.replace(/\s+/g, '').trim();
-                    
-                    // 🧪 IMPRESIÓN DE PRUEBA EN TU LISTENER REAL
-                    console.log("=== DIAGNÓSTICO EN EL LISTENER ===");
-                    console.log("URL Limpia leída por JS:", urlClean);
-                    console.log("==================================");
-
-                    // Aplicamos la lógica elástica fiel a tu View de Django (sin expresiones regulares rígidas)
-                    // 🎯 VALIDACIÓN ELÁSTICA, SEGURA Y SIN BUGS:
                     let trackId = null;
 
                     if (urlClean.includes("open.spotify.com")) {
@@ -324,10 +314,9 @@
                     } else if (!trackId) {
                         inputUrl.setCustomValidity("URL o ID incorrecto. Debe ser un enlace válido de canción de Spotify.");
                     } else {
-                        inputUrl.setCustomValidity(""); // ¡VÁLIDO DE VERDAD!
+                        inputUrl.setCustomValidity(""); 
                     }
 
-                    // Si no es válido, dispara el globo flotante nativo y frena la ejecución
                     if (!inputUrl.checkValidity()) {
                         inputUrl.reportValidity();
                         return; 
@@ -337,7 +326,6 @@
                 if (inputDias) {
                   const diasValor = inputDias.value.trim();
 
-                  // 🎯 REGLA: Si está vacío o tiene el guion por defecto, es completamente válido y pasa.
                   if (diasValor === '' || diasValor === '-') {
                       inputDias.setCustomValidity("");
                   } else {
@@ -351,19 +339,16 @@
                       }
                   }
 
-                  // Si no es válido, dispara el globo flotante y frena
                   if (!inputDias.checkValidity()) {
                       inputDias.reportValidity();
                       return; 
                   }
                 }
 
-                // Si pasó ambos checkValidity, procedemos con tu flujo original
                 await guardarAgregarCancion();
                 return;
             }
 
-            // --- FLUJO ESTÁNDAR PARA OTRAS TAREAS (Sin cambios) ---
             const formData = new FormData();
             formData.append('relacion_id', relacionSeleccionadaId);
             formData.append('tipo', tipo);
@@ -396,9 +381,7 @@
 
     const inputDiasProyeccion = document.getElementById('dias-proyeccion');
       if (inputDiasProyeccion) {
-          // Escucha cuando el usuario escribe o pega texto
           inputDiasProyeccion.addEventListener('input', (e) => {
-              // Reemplaza cualquier cosa que NO sea un número entero (\D) por un string vacío
               e.target.value = e.target.value.replace(/\D/g, '');
           });
       }
@@ -454,7 +437,7 @@
   });
 
   // ==========================================================================
-  // 🎸 MODULO A: GESTIÓN DE GÉNEROS (AJAX & DOM)
+  // MODULO A: GESTIÓN DE GÉNEROS (AJAX & DOM)
   // ==========================================================================
   function abrirModalGeneros() {
     document.getElementById('modal-gestor-generos').style.display = 'flex';
@@ -482,11 +465,7 @@
     document.querySelectorAll('#generos-list-container .genero-toggle-item').forEach(tag => {
         const id = tag.dataset.id;
         const nombre = tag.innerText.trim();
-        
-        // 🎯 Evaluamos si el tag exterior está asociado a la playlist
         const estaAsociado = tag.classList.contains('selected');
-        
-        // Formateo exacto: si está activo, todo el bloque de texto va verde y bold
         const estiloTexto = estaAsociado ? 'color: #1db954; font-weight: bold;' : '';
         const textoLabel = estaAsociado ? `${nombre} (Activo)` : nombre;
 
@@ -532,7 +511,6 @@
                 divNode.className = 'genero-toggle-item'; 
                 divNode.dataset.id = idInt;
                 divNode.textContent = data.nombre;
-                // Sincronizado con la función real de asignación relacional de tu layout
                 divNode.onclick = function() { toggleGeneroTag(this); }; 
                 
                 extContainer.appendChild(divNode);
@@ -582,8 +560,6 @@
   function toggleGeneroTag(el) {
     const generoId = el.dataset.id;
     const esAsociar = !el.classList.contains('selected'); 
-
-    // 🎯 Apuntamos a las rutas de relación, NO a las de creación/destrucción global
     const url = esAsociar ? "{% url 'asociar_genero_ajax' %}" : "{% url 'desasociar_genero_ajax' %}";
 
     const formData = new FormData();
@@ -602,7 +578,7 @@
         return response.json();
     })
     .then(data => {
-        if (data.ok) { // Verificación de bandera del backend
+        if (data.ok) { 
             if (esAsociar) {
                 el.classList.add('selected');
             } else {
@@ -626,7 +602,6 @@
     // Contamos cuántos elementos tienen la clase 'selected' en el contenedor de la izquierda
     const seleccionados = document.querySelectorAll('#generos-list-container .genero-toggle-item.selected').length;
 
-    // Si hay seleccionados mostramos el texto, si no, lo dejamos vacío
     if (seleccionados > 0) {
         contadorSpan.textContent = `(${seleccionados} seleccionado${seleccionados > 1 ? 's' : ''})`;
     } else {
@@ -635,7 +610,7 @@
   }
 
   // ==========================================================================
-  // 🛠️ MODULO B: MODAL TAREAS (INTERFAZ Y COMPORTAMIENTO)
+  // MODULO B: MODAL TAREAS (INTERFAZ Y COMPORTAMIENTO)
   // ==========================================================================
   function abrirModalTarea() {
     const inputFecha = document.getElementById('fecha-ejecucion');
@@ -764,7 +739,7 @@
   }
 
   // ==========================================================================
-  // 📈 MODULO C: FLUJO Y REFRESCAMIENTO DE TAREAS ASIGNADAS
+  // MODULO C: FLUJO Y REFRESCAMIENTO DE TAREAS ASIGNADAS
   // ==========================================================================
   async function refrescarTareas(relacionId) {
     try {
@@ -819,7 +794,7 @@
   }
 
   // ==========================================================================
-  // 🎵 MODULO D: CANCIONES (MUTACIONES, DATA-SOURCE Y RENDER)
+  // MODULO D: CANCIONES (MUTACIONES, DATA-SOURCE Y RENDER)
   // ==========================================================================
   function seleccionarCancion(el) {
     document.querySelectorAll('.song-row').forEach(r => r.classList.remove('selected'));
@@ -843,7 +818,6 @@
       document.getElementById("detalle-agregado").textContent = c.fecha_agregado ? new Date(c.fecha_agregado).toLocaleDateString() : "—";
       document.getElementById("detalle-posicion").textContent = c.posicion || "—";
 
-      // Tus tareas se refrescan aquí adentro perfectamente con la data local
       refrescarTareas(relacionId);
     }
   }
@@ -861,7 +835,6 @@
     if (!modalContent) return;
 
     if (mostrar) {
-        // 🚀 Agrega la clase que ensancha el modal a 780px y muestra la 4ta columna
         modalContent.classList.add('modo-agregar-cancion');
         
         if (inputDias) {
@@ -870,30 +843,22 @@
             inputDias.onblur = function() { if(this.value.trim() === '') this.value = '-'; };
         }
     } else {
-        // 🚀 Remueve la clase regresando el modal a sus 500px compactos originales
         modalContent.classList.remove('modo-agregar-cancion');
         if (inputDias) inputDias.value = '-';
     }
   }
 
   function validarCamposModalNativos() {
-    // 🚨 LOG DE ENTRADA: Si esto no sale, el problema es el EventListener del botón Confirmar
-    console.log("🚀 ¡La función validarCamposModalNativos() SE ESTÁ EJECUTANDO!");
-
     const inputUrl = document.getElementById('url-cancion');
     const inputDias = document.getElementById('dias-proyeccion');
     
-    // Diagnóstico del DOM
-    console.log("🔍 Estado del DOM -> inputUrl:", inputUrl, "| inputDias:", inputDias);
-    
-    // 1️⃣ VALIDACIÓN: URL de Spotify (Si existe en el DOM)
     if (inputUrl) {
         const urlValorOriginal = inputUrl.value;
         const urlValorLimpio = urlValorOriginal.replace(/\s+/g, '').trim();
 
         inputUrl.setCustomValidity("Revisando consola... Mira el log para ver el texto real.");
         inputUrl.reportValidity();
-        return false; // Frenamos el flujo
+        return false; 
     }
 
     if (inputDias) {
@@ -924,11 +889,8 @@
     if (labelPos) labelPos.textContent = "—";
     
     poblarPosiciones(totalCanciones, true);
-
-    // Activamos la columna a la derecha de la fecha
     alternarColumnaProyeccion(true);
 
-    // El col-extra ahora solo renderiza el input de la URL abajo ocupando todo el ancho
     const colExtra = document.getElementById("col-extra");
     if (colExtra) {
         colExtra.innerHTML = `
@@ -946,8 +908,6 @@
     const url = document.getElementById("url-cancion").value;
     const posicion = document.getElementById("posicion").value;
     const fecha = document.getElementById("fecha-ejecucion").value;
-    
-    // 🎯 CORRECCIÓN: Leemos el valor del input del DOM
     const inputDias = document.getElementById("dias-proyeccion");
     const diasProyeccion = inputDias ? inputDias.value.trim() : "-";
 
@@ -955,7 +915,6 @@
     formData.append("url", url);
     formData.append("posicion", posicion);
     formData.append("fecha", fecha);
-    // 🎯 CORRECCIÓN: Adjuntamos los días de proyección al payload que viaja a Django
     formData.append("dias_proyeccion", diasProyeccion); 
 
     try {
@@ -1030,7 +989,7 @@
   }
 
   // ==========================================================================
-  // 🔌 MODULO E: COMUNICACIÓN CON CORE CORE & CLIENT-UTILITIES
+  // MODULO E: COMUNICACIÓN CON CORE & CLIENT-UTILITIES
   // ==========================================================================
   async function ejecutarConciliacion(idPlaylistLocal, forzar = false) {
     const url = "{% url 'actualizar_playlist_spotify' playlist.id_playlist %}";

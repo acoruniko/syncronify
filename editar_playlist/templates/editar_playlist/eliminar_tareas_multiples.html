@@ -6,10 +6,10 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'editar_playlist/css/editar_playlist.css' %}">
 <style>
-  /* 🎛️ RECALIBRACIÓN DE MAPA DE DISEÑO PARA PLAYLISTS */
+  /* RECALIBRACIÓN DE MAPA DE DISEÑO PARA PLAYLISTS */
   .grid-destinos-playlist {
     display: grid;
-    grid-template-columns: 1fr 1.6fr; /* Izquierda compacta (Carrito), Derecha dominante (Buscador) */
+    grid-template-columns: 1fr 1.6fr;
     gap: 20px;
     margin-top: 20px;
   }
@@ -192,18 +192,13 @@
 </div>
 
 <script>
-  // Cesta global de ítems a eliminar: [{"id_relacion": X, "titulo": Y, "playlist_origen": Z}]
   let cestaEliminar = [];
-  
-  // Variables estructurales para los filtros asíncronos del Estado A
   let generosFiltroSeleccionados = new Set();
   let textoBusquedaActual = "";
   
-  // Cache en memoria del catálogo inicial (HTML puro renderizado por Django) para no re-consultar al regresar
   let htmlCatalogoPlaylistsCache = "";
 
   document.addEventListener('DOMContentLoaded', function() {
-      // Almacenamos el estado inicial de las filas del catálogo en caché
       const contenedor = document.getElementById('contenedor-playlists-dinamico');
       if (contenedor) {
           htmlCatalogoPlaylistsCache = contenedor.innerHTML;
@@ -246,19 +241,15 @@
           .then(response => response.json())
           .then(data => {
               if (!data.ok) throw new Error(data.error);
-
-                // MUTA EL ESTADO DE LA UI
                 titulo.textContent = `${data.playlist_nombre}`;
                 bloqueFiltros.style.display = 'none'; 
 
-                // 🔓 ACTIVAMOS EL BOTÓN INTERNO DE RETORNO Y GUARDAMOS LA PLAYLIST CONTEXTUAL
                 const btnVolver = document.getElementById('btn-volver-a-playlists');
                 if (btnVolver) {
                     btnVolver.disabled = false;
                     btnVolver.dataset.playlistIdActiva = playlistId; // <-- Guardamos la referencia limpia
                 }
 
-                // 🔒 BLOQUEAMOS EL BOTÓN ATRÁS GENERAL PARA EVITAR ERRORES DE NAVEGACIÓN
                 const btnAtras = document.getElementById('btn-navegacion-atras');
                 if (btnAtras) btnAtras.disabled = true;
 
@@ -274,7 +265,6 @@
                   row.style.cursor = 'pointer';
                   row.style.justifyContent = 'space-between';
                   
-                  // Metadata indexada para recuperación en click
                   row.dataset.idRelacion = track.id_relacion;
                   row.dataset.titulo = track.titulo;
                   row.dataset.artistas = track.artistas;
@@ -313,11 +303,9 @@
         document.getElementById('titulo-navegador-derecho').textContent = "Catálogo de Playlists";
         document.getElementById('bloque-filtros-playlists').style.display = 'block';
 
-        // 🔒 DESHABILITAMOS EL BOTÓN INTERNO DE RETORNO NÚEVAMENTE
         const btnVolver = document.getElementById('btn-volver-a-playlists');
         if (btnVolver) btnVolver.disabled = true;
 
-        // 🔓 LIBERAMOS EL BOTÓN ATRÁS GENERAL (Ya estás en la raíz del módulo)
         const btnAtras = document.getElementById('btn-navegacion-atras');
         if (btnAtras) btnAtras.disabled = false;
 
@@ -341,20 +329,17 @@
       const playlistOrigen = elementoRow.dataset.playlistOrigen;
       const yaProgramadaBaseDatos = elementoRow.dataset.eliminacionProgramada === "true";
 
-      // 🚀 1. CONTROL POR BURBUJA HTML5 SI YA TIENE UN BORRADO PROGRAMADO EN EL BACKEND
       if (yaProgramadaBaseDatos) {
           dispararBurbujaInformativa(elementoRow, 'Esta canción ya tiene una tarea de eliminación pendiente en el servidor.');
           return;
       }
 
-      // 🚀 2. CONTROL ANTI-DUPLICADOS EN LA CESTA ACTUAL
       const yaEnCesta = cestaEliminar.some(item => item.id_relacion === idRelacion);
       if (yaEnCesta) {
           dispararBurbujaInformativa(elementoRow, 'Esta canción ya está añadida en el lote de eliminación izquierdo.');
           return;
       }
 
-      // Feedback visual de inserción exitosa
       elementoRow.classList.add('seleccionado-temp');
       setTimeout(() => elementoRow.classList.remove('seleccionado-temp'), 300);
 
@@ -397,7 +382,6 @@
       cestaEliminar.push({
           id_relacion: idRelacion,
           titulo: titulo,
-          // Capturamos el id de la playlist que guardamos previamente en el flujo anterior
           playlist_id: parseInt(document.getElementById('btn-volver-a-playlists').dataset.playlistIdActiva || document.querySelector('[data-id-playlist]')?.dataset.idPlaylist || elementoRow.dataset.idPlaylist || 0) 
       });
 
@@ -468,7 +452,7 @@
   }
 
   // ==========================================================================
-  // 🎛️ ADAPTACIÓN DEL MOTOR DE FILTRADO ASÍNCRONO ORIGINAL DE TU VIEWS.PY
+  // ADAPTACIÓN DEL MOTOR DE FILTRADO ASÍNCRONO ORIGINAL
   // ==========================================================================
   function ejecutarFiltradoGlobal() {
       const contenedor = document.getElementById('contenedor-playlists-dinamico');
@@ -578,31 +562,22 @@
   async function despacharLoteEliminacionServer() {
         const btnProcesar = document.getElementById('btn-procesar-eliminacion-lote');
         
-        // 1. Validamos usando tu estructura real en memoria
         if (!cestaEliminar || cestaEliminar.length === 0) {
             alert("La cesta de eliminación está vacía.");
             return;
         }
 
-        // 2. Bloquear controles visuales
         btnProcesar.disabled = true;
         btnProcesar.textContent = "Procesando...";
 
-        // 3. Mapeo directo y exacto sin funciones parche
         const payloadCesta = cestaEliminar.map(item => {
-            // Buscamos la fila en el DOM usando el id_relacion para extraer su input de fecha específico
             const filaDOM = document.querySelector(`[data-cesta-relacion-id="${item.id_relacion}"]`);
             const inputFecha = filaDOM ? filaDOM.querySelector('.fecha-item-cesta') : null;
-            
-            // Recuperamos el playlistId que necesitas en el backend. 
-            // Como tu objeto en 'cestaEliminar' no lo guardaba, lo leemos del dataset del input o usamos la playlist actual activa
             const inputFechaGlobal = document.getElementById('fecha-global-lote');
             
             return {
                 relacion_id: parseInt(item.id_relacion),
-                // Si la fila tiene la fecha, usamos esa; si no, el fallback global
                 fecha: inputFecha ? inputFecha.value : inputFechaGlobal.value,
-                // Enviamos el ID de la playlist origen (lo leemos de la fila o del contexto)
                 playlist_id: parseInt(window.idPlaylistActivaActual || item.playlist_id || document.querySelector('#contenedor-playlists-dinamico .playlist-row')?.dataset.id)
             };
         });
@@ -617,7 +592,6 @@
         }
 
         try {
-            // 4. Despacho transaccional al endpoint de Django
             const response = await fetch("{% url 'planificar_eliminacion_lote_ajax' %}", {
                 method: 'POST',
                 headers: {
@@ -633,8 +607,7 @@
             if (!response.ok || !data.ok) {
                 throw new Error(data.error || "Error al procesar el lote.");
             }
-
-            // ÉXITO GLOBAL O PARCIAL: Vaciamos la cesta y recargamos para pintar las alertas
+            
             cestaEliminar = [];
             window.location.href = "{% url 'lista_playlist_home' %}";
 

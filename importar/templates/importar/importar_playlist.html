@@ -166,7 +166,6 @@
 
       const row = document.createElement('div');
       row.className = 'modal-genero-row';
-      // Si está seleccionado afuera, le damos un toque opaco o aviso para advertir que está activo en la selección actual
       row.innerHTML = `
         <span style="${estaSeleccionado ? 'color: #1db954; font-weight: bold;' : ''}">${nombre} ${estaSeleccionado ? '(Activo)' : ''}</span>
         <span class="btn-eliminar-tag" onclick="eliminarGeneroDesdeModal(${id}, this)">×</span>
@@ -179,10 +178,8 @@
     const contadorSpan = document.getElementById('generos-contador');
     if (!contadorSpan) return;
 
-    // Contamos cuántos elementos tienen la clase 'selected' en el contenedor de la izquierda
     const seleccionados = document.querySelectorAll('#generos-list-container .genero-toggle-item.selected').length;
 
-    // Si hay seleccionados mostramos el texto, si no, lo dejamos vacío
     if (seleccionados > 0) {
         contadorSpan.textContent = `(${seleccionados} seleccionado${seleccionados > 1 ? 's' : ''})`;
     } else {
@@ -196,14 +193,12 @@
     const nombre = input.value.trim();
     if (!nombre) return;
 
-    // 🚀 Cambiamos la URL estática por el tag nativo de Django para evitar desajustes de rutas
     fetch('/importar/generos/crear/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
         body: JSON.stringify({ nombre: nombre })
     })
     .then(res => {
-        // Validación preventiva: Si el servidor no responde un 200, inspeccionamos el error
         if (!res.ok) {
             throw new Error(`Error en el servidor: Código ${res.status}`);
         }

@@ -19,9 +19,6 @@ from django.db import transaction
 from playlists.services import procesar_consecuencias_tarea_eliminada, conciliar_playlist_con_spotify
 from django.db import models
 
-# Asegúrate de importar tus modelos Playlist y Genero
-
-
 def mensajes_bar(request):
     return render(request, "partials/mensajes_bar.html")
 
@@ -51,9 +48,9 @@ def editar_playlist_home(request, playlist_id):
         # Cálculo de días en el sistema limpio y real
         if rel.fecha_sincronizacion:
             dias_sistema = (ahora - rel.fecha_sincronizacion).days
-            dias_en_sistema = max(0, dias_sistema)  # Mantiene el entero si ya existe
+            dias_en_sistema = max(0, dias_sistema) 
         else:
-            dias_en_sistema = None  # 🚫 No inventamos datos si es null en la BD
+            dias_en_sistema = None 
 
         tareas_qs = (
             Tarea.objects.filter(relacion=rel)
@@ -81,7 +78,7 @@ def editar_playlist_home(request, playlist_id):
             "cover_url": getattr(c, "cover_url", None),
             "id_relacion": rel.id_relacion,
             "tareas": tareas,
-            "dias_en_sistema": dias_en_sistema,  # 🚀 Inyectado para HTML y JSON
+            "dias_en_sistema": dias_en_sistema,  
         })
 
     # ⚠️ Verificar rate limit usando servicio
@@ -301,17 +298,7 @@ def agregar_cancion(request, playlist_id):
         url = request.POST.get("url")
         posicion = request.POST.get("posicion")
         fecha = request.POST.get("fecha")
-        # 🎯 Capturamos el nuevo parámetro
         dias_proyeccion_raw = request.POST.get("dias_proyeccion")
-
-        # 🔍 BANDERA DE DEBBUGGING EN CONSOLA
-        print("\n" + "="*50)
-        print(" [DEBUG AGREGAR CANCIÓN]")
-        print(f" -> URL: {url}")
-        print(f" -> Posición: {posicion}")
-        print(f" -> Fecha Base: {fecha}")
-        print(f" -> Días Proyección Recibidos: '{dias_proyeccion_raw}' (Tipo: {type(dias_proyeccion_raw).__name__})")
-        print("="*50 + "\n")
 
         if not url or not posicion or not fecha:
             messages.error(request, "Datos incompletos para agregar canción")
@@ -456,7 +443,6 @@ def agregar_cancion(request, playlist_id):
                 url_cancion=url
             )
 
-            # 🎯 CORRECCIÓN: Inicializamos las variables del mensaje fuera del try de parseo
             tarea_eliminar_creada = False
             fecha_eliminar_str = ""
 
@@ -479,8 +465,6 @@ def agregar_cancion(request, playlist_id):
                         )
                         tarea_eliminar_creada = True
                 except (ValueError, TypeError) as e:
-                    # En producción puedes registrar esto con un logger si es necesario, 
-                    # de momento evitamos que tire un 500 si el JS mandó algo extraño
                     pass
 
         # 7. Respuesta de éxito e inyección de Mensajes en el Sistema de Django
@@ -675,7 +659,6 @@ def actualizar_playlist_spotify_view(request, playlist_id):
 
     headers = {"Authorization": f"Bearer {token}"}
 
-    # 🎯 VALIDACIÓN CONTRA EL PRESENTE LOCAL
     if not forzar:
         url_playlist_base = f"https://api.spotify.com/v1/playlists/{playlist.id_spotify}?fields=snapshot_id"
         try:
@@ -757,7 +740,6 @@ def asociar_genero_ajax(request):
     playlist = get_object_or_404(Playlist, id_playlist=playlist_id)
     genero = get_object_or_404(Genero, id_genero=genero_id)
     
-    # Django maneja la duplicidad internamente, .add() es seguro
     playlist.generos.add(genero)
     
     return JsonResponse({'ok': True, 'msg': f'Género {genero.nombre} asociado con éxito.'})
@@ -781,8 +763,6 @@ def desasociar_genero_ajax(request):
 
 @login_required
 def agregar_tareas_multiples_home(request):
-    # Por ahora renderizamos el template vacío o con la estructura básica
-    # Si aún no existe el archivo, puedes poner un HttpResponse("En construcción")
     return render(request, "editar_playlist/agregar_tareas_multiples.html")
 
 
@@ -820,7 +800,6 @@ def consultar_track_spotify_ajax(request):
             return JsonResponse({
                 "ok": False,
                 "requires_auth": True,
-                # Usamos un estado genérico o puedes adaptarlo si necesitas retornar a la pantalla múltiple
                 "auth_url": build_authorize_url(state="agregar_tareas_multiples")
             }, status=401)
 
@@ -948,11 +927,9 @@ def planificar_tareas_lote_ajax(request):
 
         duplicados_omitidos = 0
         logs_copiado = {}
-
-        # 🚀 PRIMERA TAREA: Un solo id_lote global para toda la operación, igual que en posicionar
         id_lote_global = uuid.uuid4()
 
-        # 🚀 OPERACIÓN ATÓMICA DE PERSISTENCIA
+        # OPERACIÓN ATÓMICA DE PERSISTENCIA
         with transaction.atomic():
             
             for p_dest in playlists_destino:
@@ -1057,7 +1034,7 @@ def planificar_tareas_lote_ajax(request):
                         except (ValueError, TypeError):
                             pass
 
-        # 🎯 GENERACIÓN DE MENSAJES CONSOLIDADOS POR CANCIÓN (Sin cambios)
+        # GENERACIÓN DE MENSAJES CONSOLIDADOS POR CANCIÓN (Sin cambios)
         for t_id, info in logs_copiado.items():
             if info['destinos_agregar']:
                 destinos_str = " | ".join(info['destinos_agregar'])
@@ -1151,7 +1128,6 @@ def obtener_canciones_playlist_eliminar_ajax(request, playlist_id):
     
     canciones = []
     for rel in relaciones:
-        # 🛡️ CORRECCIÓN: Buscamos CUALQUIER tarea pendiente para esta relación, no solo de tipo "Eliminar"
         tarea_pendiente = Tarea.objects.filter(
             relacion=rel, 
             estado="Pendiente"
@@ -1201,7 +1177,6 @@ def planificar_eliminacion_lote_ajax(request):
         if not cesta:
             return JsonResponse({'ok': False, 'error': 'La cesta de eliminación está vacía.'}, status=400)
         
-        # 🚀 PRIMERA TAREA: Un solo id_lote global para toda la cesta, igual que en posicionar
         id_lote_global = uuid.uuid4()
         
         duplicados_omitidos = 0
@@ -1254,7 +1229,7 @@ def planificar_eliminacion_lote_ajax(request):
                             errores_colision += 1
                             continue  
 
-                    # 🚀 Usamos directamente el id_lote_global para romper la separación de playlists
+                    # Usamos directamente el id_lote_global para romper la separación de playlists
                     tarea_eliminar = Tarea.objects.create(
                         relacion=relacion,
                         tipo="Eliminar",
@@ -1277,7 +1252,7 @@ def planificar_eliminacion_lote_ajax(request):
                 print(f"Error procesando item del lote: {str(e)}")
                 continue
 
-        # 🎯 DISPARO DE MENSAJES CONSOLIDADOS (Sin cambios)
+        # DISPARO DE MENSAJES CONSOLIDADOS (Sin cambios)
         for t_id, info in logs_copiado.items():
             if info['destinos']:
                 destinos_str = " | ".join(info['destinos'])
@@ -1399,7 +1374,7 @@ def planificar_posicionamiento_lote_ajax(request):
                 print(f"Error procesando item de posicionamiento: {str(e)}")
                 continue
 
-        # 🎯 DISPARO DE MENSAJES CONSOLIDADOS
+        # DISPARO DE MENSAJES CONSOLIDADOS
         for t_id, info in logs_copiado.items():
             if info['destinos']:
                 destinos_str = " | ".join(info['destinos'])

@@ -46,7 +46,7 @@ def sincronizar_playlist_home(request):
     for t in tareas_qs:
         tareas.append({
             "id_tarea": t.id_tarea,
-            "accion": t.tipo,   # Mantiene el string para la columna 'Acción' ("Agregar", "Eliminar")
+            "accion": t.tipo,  
             "posicion": t.posicion,
             "titulo": t.relacion.cancion.nombre if t.relacion and t.relacion.cancion else None,
             "album": t.relacion.cancion.album if t.relacion and t.relacion.cancion else None,
@@ -56,15 +56,12 @@ def sincronizar_playlist_home(request):
             "estado": t.estado,
             "usuario": t.usuario.nombre_completo if t.usuario else None,
             "fecha_ejecucion": t.fecha_ejecucion.strftime("%d-%m-%Y"),
-            
-            # ==========================================
-            # 🚀 LOS ENLACES PERDIDOS CON EL FRONTEND:
-            # ==========================================
-            "id_lote": t.id_lote if hasattr(t, "id_lote") else None,  # Ajusta el nombre si en tu modelo Tarea se llama distinto
-            "tipo": t.tipo, # Lo necesita data-tipo en el HTML para saber si es "agregar"
+
+            "id_lote": t.id_lote if hasattr(t, "id_lote") else None,  
+            "tipo": t.tipo, 
         })
 
-    # ⚠️ Verificar rate limit pero sin mensajes
+    # Verificar rate limit pero sin mensajes
     cred = CredencialesSpotify.objects.first()
     seconds_remaining = 0
     rate_limited = False
@@ -145,7 +142,7 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
     if playlist_actual_id and playlist_actual_id != int(playlist_id):
         print(f"[WARN VISTA] La tarea {tarea_id} mutó de playlist. Original de URL: {playlist_id} -> Actual en DB: {playlist_actual_id}")
 
-    # 📥 EXTRAER PARÁMETRO DE LOTE DESDE EL JSON ENVIADO POR JS
+    # EXTRAER PARÁMETRO DE LOTE DESDE EL JSON ENVIADO POR JS
     ejecutar_como_lote = False
     if request.content_type == "application/json":
         try:
@@ -156,7 +153,7 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
     else:
         ejecutar_como_lote = request.POST.get("ejecutar_como_lote") in ["true", "True", "1", True]
 
-    # ⚠️ Validación de Credenciales de Spotify
+    # Validación de Credenciales de Spotify
     cred = check_credentials(request)
     if isinstance(cred, HttpResponseRedirect):
         return JsonResponse({
@@ -165,7 +162,7 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
             "auth_url": build_authorize_url(state="sincronizar_playlist")
         }, status=401)
 
-    # ⚠️ Estados de control (Completada / No operable)
+    # Estados de control (Completada / No operable)
     estado_lower = tarea.estado.strip().lower() if tarea.estado else ""
     if estado_lower == "completado":
         messages.info(request, f"La tarea {tarea.tipo} de '{tarea.relacion.cancion.nombre}' ya fue completada.")
@@ -174,12 +171,12 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
     if estado_lower in ["anulada", "cancelada"]:
         return JsonResponse({"ok": False, "error": f"Tarea en estado no operable: {tarea.estado}", "estado": tarea.estado}, status=400)
 
-    # ⚠️ Control de Rate Limit
+    # Control de Rate Limit
     seconds_remaining = check_rate_limit(request, cred, show_message=True)
     if seconds_remaining:
         return JsonResponse({"ok": False, "error": f"Rate limit activo.", "rate_limited": True, "seconds_remaining": seconds_remaining})
 
-    # 🛡️ VALIDACIONES DE COHERENCIA CRONOLÓGICA
+    # VALIDACIONES DE COHERENCIA CRONOLÓGICA
     tipo_actual = tarea.tipo.strip().lower()
     relacion_estado = tarea.relacion.estado.strip().lower() if tarea.relacion and tarea.relacion.estado else ""
 
@@ -188,10 +185,10 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
         return JsonResponse({"ok": False, "error": "Canción no agregada aún en Spotify"}, status=400)
 
     # =====================================================================
-    # 👉 EJECUCIÓN SOBERANA: Selección de flujo basada EN LA ORDEN DEL JS
+    # EJECUCIÓN: Selección de flujo basada EN LA ORDEN DEL JS
     # =====================================================================
     
-    # 🛠️ AGREGAR Y ELIMINAR: Absorben el lote completo de la BD en una sola iteración de Python
+    # AGREGAR Y ELIMINAR: Absorben el lote completo de la BD en una sola iteración de Python
     if ejecutar_como_lote and tipo_actual in ["agregar", "eliminar"]:
         print(f"\n=== [DEBUG VISTA] INICIO PROCESAMIENTO LOTE ABSORBIDO [{tipo_actual.upper()}] ===")
         
@@ -213,7 +210,7 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
         lote_absorbido = True  # Le avisa al JS que rompa el bucle de inmediato
         total_procesadas = total_tareas_pendientes
 
-    # 🛠️ POSICIONAR (en lote o individual) O CUALQUIER TAREA UNITARIA STANDARD
+    # POSICIONAR (en lote o individual) O CUALQUIER TAREA UNITARIA STANDARD
     else:
         # Si viene de un switch de lote pero es posicionar, se envía ejecutar_como_lote=True 
         # para que la Capa 2 use el sufijo de lote correcto, pero procesando uno por uno de forma secuencial.
@@ -235,7 +232,7 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
     if concilio and mensaje_telemetria:
         messages.info(request, mensaje_telemetria)
 
-    # 🎯 CORRECCIÓN QUIRÚRGICA: Extraer el string del mensaje generado para retornarlo al JS
+    # CORRECCIÓN QUIRÚRGICA: Extraer el string del mensaje generado para retornarlo al JS
     texto_notificacion = ""
     if estado == "Completado" and tarea.relacion and tarea.relacion.cancion and tarea.relacion.playlist:
         tipo_str = tarea.tipo.strip().capitalize()

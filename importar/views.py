@@ -87,8 +87,7 @@ def importar_playlist_confirmar(request, playlist_id):
         playlist_data = playlist_resp.json()
 
         descripcion = playlist_data.get("description", "")[:1000] if playlist_data.get("description") else ""
-        
-        # 🔄 CAPTURA DEL SNAPSHOT ACTUAL DESDE LA API
+
         snapshot_fresco = playlist_data.get("snapshot_id")
 
         # Aislamiento atómico para persistir la estructura completa sin corrupción parcial
@@ -101,8 +100,7 @@ def importar_playlist_confirmar(request, playlist_id):
                 total_canciones=playlist_data["tracks"]["total"],
                 cover_url=playlist_data["images"][0]["url"] if playlist_data.get("images") else None,
                 usuario_importo=request.user,
-                
-                # 🛡️ ASIGNACIÓN CONFORME AL NUEVO MODELO DE DATOS
+
                 snapshot_ahorita=snapshot_fresco,   # Guardamos el estado actual capturado
                 snapshot_anterior=None               # Importación inicial: queda explícitamente vacío
             )
@@ -118,7 +116,7 @@ def importar_playlist_confirmar(request, playlist_id):
                     estado="activo"
                 )
                 
-            # 🚀 ASOCIAR GÉNEROS SELECCIONADOS
+            # ASOCIAR GÉNEROS SELECCIONADOS
             for g_id in lista_generos_ids:
                 PlaylistGenero.objects.create(
                     playlist_id=playlist_obj.pk,  
@@ -164,7 +162,7 @@ def importar_playlists(request):
         data = resp.json()
         playlists = data.get("items", [])
 
-        # 🚀 EXTRAEMOS TODOS LOS GÉNEROS DISPONIBLES DE TU TABLA MANUAL
+        # EXTRAEMOS TODOS LOS GÉNEROS DISPONIBLES
         generos_disponibles = Genero.objects.all().order_by('nombre')
 
         return render(request, "importar/importar_playlist.html", {

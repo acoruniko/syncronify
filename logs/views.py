@@ -40,7 +40,7 @@ def panel_logs(request):
         qs = qs.order_by(f"{prefix}{order_by}")
 
     # =====================================================================
-    # 🚨 MOTOR DE PAGINACIÓN QUIRÚRGICO (200 registros por ráfaga)
+    # MOTOR DE PAGINACIÓN QUIRÚRGICO (200 registros por ráfaga)
     # =====================================================================
     paginator = Paginator(qs, 1000)
     
@@ -52,7 +52,7 @@ def panel_logs(request):
         logs_paginados = paginator.page(paginator.num_pages)
 
     return render(request, "logs/panel.html", {
-        "logs": logs_paginados,  # 🎯 Ahora pasamos el objeto de página, no el QuerySet crudo
+        "logs": logs_paginados,  
         "current_year": year,
         "current_month": month,
         "order_by": order_by,

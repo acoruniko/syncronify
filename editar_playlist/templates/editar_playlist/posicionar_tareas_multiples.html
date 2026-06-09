@@ -6,7 +6,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'editar_playlist/css/editar_playlist.css' %}">
 <style>
-  /* 🎛️ MAPA DE DISEÑO ADAPTADO PARA POSICIONAMIENTO EN LOTE */
+  /* MAPA DE DISEÑO ADAPTADO PARA POSICIONAMIENTO EN LOTE */
   .grid-destinos-playlist {
     display: grid;
     grid-template-columns: 1fr 1.6fr; 
@@ -88,7 +88,7 @@
     padding: 0 10px;
   }
 
-  /* 🛠️ CONTENEDORES ESPECÍFICOS PARA LAS COLUMNAS DE POSICIONAMIENTO */
+  /* CONTENEDORES ESPECÍFICOS PARA LAS COLUMNAS DE POSICIONAMIENTO */
   .col-posicion-inputs-lote {
     display: flex;
     align-items: center;
@@ -287,8 +287,6 @@
                   row.dataset.artistas = track.artistas;
                   row.dataset.coverUrl = track.cover_url || '';
                   row.dataset.playlistOrigen = track.playlist_origen_nombre;
-                  
-                  // 🛡️ SIN FILTROS RAROS: Inyectamos el entero puro enviado por Django (-1, 1, 2...)
                   row.dataset.posicionActual = track.posicion_actual;
                   row.dataset.totalPlaylist = track.total_playlist || 0;
 
@@ -341,8 +339,6 @@
       const artistas = elementoRow.dataset.artistas;
       const coverUrl = elementoRow.dataset.coverUrl;
       const playlistOrigen = elementoRow.dataset.playlistOrigen || 'Desconocida';
-      
-      // 1. Forzamos el parseo numérico del valor crudo enviado por la vista (-1, 1, etc.)
       const posicionActual = parseInt(elementoRow.dataset.posicionActual) || 1;
       const totalPlaylist = parseInt(elementoRow.dataset.totalPlaylist) || posicionActual || 1;
 
@@ -361,14 +357,12 @@
 
       const fechaDefecto = document.getElementById('fecha-global-lote').value;
 
-      // Generación del selector acotado al total real
       let opcionesSelect = '';
       for (let i = 1; i <= totalPlaylist; i++) {
           const selected = (i === posicionActual) ? 'selected' : '';
           opcionesSelect += `<option value="${i}" ${selected}>${i}</option>`;
       }
 
-      // 🛠️ CONTROL VISUAL: Si es -1 cambiamos la etiqueta a "-", si no dejamos el número
       const etiquetaPosicion = (posicionActual === -1) ? "-" : posicionActual;
 
       const row = document.createElement('div');
@@ -378,7 +372,6 @@
       row.style.justifyContent = 'space-between';
       row.style.padding = '8px';
 
-      // En el <span> inyectamos 'etiquetaPosicion' para que el usuario vea el guion
       row.innerHTML = `
         <div style="display: flex; align-items: center; overflow: hidden; gap: 8px; width: 40%;">
           <img src="${coverUrl || '/static/img/default_cover.png'}" class="playlist-cover" style="width:36px; height:36px;">
@@ -584,7 +577,6 @@
       btnProcesar.disabled = true;
       btnProcesar.textContent = "Procesando...";
 
-      // Mapeo limpio extrayendo los controles individuales de cada track
       const payloadCesta = cestaPosicionar.map(item => {
           const filaDOM = document.querySelector(`[data-cesta-relacion-id="${item.id_relacion}"]`);
           const inputFecha = filaDOM ? filaDOM.querySelector('.fecha-item-cesta') : null;
@@ -599,7 +591,6 @@
           };
       });
 
-      // Validación previa en cliente por si algún input quedó corrupto o vacío
       const datosInvalidos = payloadCesta.some(item => !item.fecha || item.nueva_posicion === null);
       if (datosInvalidos) {
           alert("Por favor, verifica que todas las canciones tengan fecha y posición asignadas.");
@@ -624,7 +615,6 @@
               throw new Error(data.error || "Error al procesar el lote.");
           }
 
-          // Éxito en el procesamiento de la transacción masiva (sea total o parcial)
           cestaPosicionar = [];
           window.location.href = "{% url 'lista_playlist_home' %}";
 

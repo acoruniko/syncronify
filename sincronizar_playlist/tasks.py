@@ -16,7 +16,7 @@ def process_tarea(self, tarea_id, ejecutar_como_lote=False):
         try:
             tarea = Tarea.objects.get(id_tarea=tarea_id)
             
-            # 🎯 Sincronización de Estados Celery <-> DB
+            # Sincronización de Estados Celery <-> DB
             # Evaluamos si a Celery todavía le quedan cartuchos (intentos) disponibles
             if self.request.retries < self.max_retries:
                 tarea.estado = "En espera de reintento"
