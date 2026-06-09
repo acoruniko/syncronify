@@ -561,29 +561,59 @@
   }
 
   document.getElementById('btn-eliminar-tarea').addEventListener('click', async () => {
-    if (!tareaSeleccionadaId) return;
+    // 1. Validar que existan elementos seleccionados en el estado global
+    if (tareasSeleccionadasLoteIds.length === 0) return;
 
-    const usuario = tareaSeleccionadaUsuario || "desconocido";
-    const confirmacion = confirm(`¿Está seguro de eliminar esta tarea creada por ${usuario}?`);
+    const totalTareas = tareasSeleccionadasLoteIds.length;
+    
+    // 2. Mensaje dinámico y limpio adaptado a la magnitud de la selección
+    const confirmacion = confirm(`¿Está seguro de eliminar las ${totalTareas} tareas seleccionadas?`);
     if (!confirmacion) return;
 
+    const btnEliminar = document.getElementById('btn-eliminar-tarea');
+    const btnSincronizar = document.getElementById('btn-sincronizar');
+    
+    // 3. Bloqueo de UI preventivo (Anti-Double-Click)
+    btnEliminar.disabled = true;
+    btnSincronizar.disabled = true;
+    btnEliminar.textContent = "Eliminando…";
+    document.getElementById('lista-tareas').classList.add('disabled');
+
     const csrfToken = getCookie('csrftoken');
+    let todasBorradasOk = true;
 
     try {
-      const resp = await fetch(
-        "{% url 'eliminar_tarea' 0 %}".replace("0", tareaSeleccionadaId),
-        { method: 'POST', headers: { 'X-CSRFToken': csrfToken } }
-      );
-      const data = await resp.json();
+      // 4. Procesamiento secuencial del lote de eliminación
+      for (let i = 0; i < totalTareas; i++) {
+        const idTarea = tareasSeleccionadasLoteIds[i];
+        
+        // Reemplazo dinámico sobre tu URL estándar de Django
+        const urlEliminar = "{% url 'eliminar_tarea' 0 %}".replace("0", idTarea);
+        
+        console.log(`[Orquestador JS] Eliminando Tarea ID: ${idTarea} (${i + 1}/${totalTareas})`);
+        
+        const resp = await fetch(urlEliminar, { 
+          method: 'POST', 
+          headers: { 'X-CSRFToken': csrfToken } 
+        });
+        
+        const data = await resp.json();
 
-      if (data.ok) {
-        window.location.reload();
-      } else {
-        console.error("Error al eliminar tarea:", data.error || "Respuesta inválida");
-        window.location.reload();
+        if (!data.ok) {
+          console.error(`Error al eliminar Tarea ID ${idTarea}:`, data.error || "Respuesta inválida");
+          todasBorradasOk = false;
+          break; // Rompemos el ciclo si el backend reporta un fallo crítico
+        }
       }
+
+      // 5. Asentamiento final y recarga
+      if (todasBorradasOk) {
+        console.log(`[Orquestador JS] Lote de ${totalTareas} tareas eliminado con éxito.`);
+      }
+      window.location.reload();
+
     } catch (e) {
-      console.error("Error de red al eliminar la tarea:", e);
+      console.error("Error de red crítico al procesar el lote de eliminación:", e);
       window.location.reload();
     }
   });
@@ -617,21 +647,10 @@
               const tipoTarea = filaDOM.dataset.tipo ? filaDOM.dataset.tipo.toLowerCase().trim() : "";
               const urlDinamica = `/sincronizar/tareas/${playlistDeEstaTarea}/${idTarea}/sincronizar/`;
               
-              let cuerpoPayload = { ejecutar_como_lote: false };
-              let esOperacionLoteValida = false;
+              // 🛠️ LÓGICA UNIFICADA: Si el switch está encendido, es un lote real para CUALQUIER tarea
+              let cuerpoPayload = { ejecutar_como_lote: switchLote };
               
-              if (switchLote) {
-                  if (tipoTarea === "agregar" || tipoTarea === "eliminar") {
-                      cuerpoPayload.ejecutar_como_lote = true;
-                      esOperacionLoteValida = true;
-                  } 
-                  else if (tipoTarea === "posicionar") {
-                      cuerpoPayload.ejecutar_como_lote = false;
-                      console.log(`[Orquestador JS] Tarea ${idTarea} es POSICIONAR. Forzando ejecución secuencial individual.`);
-                  }
-              }
-
-              console.log(`[Orquestador JS] Enviando Tarea ID: ${idTarea} | Playlist: ${playlistDeEstaTarea} | Tipo: ${tipoTarea.toUpperCase()}`);
+              console.log(`[Orquestador JS] Enviando Tarea ID: ${idTarea} | Playlist: ${playlistDeEstaTarea} | Tipo: ${tipoTarea.toUpperCase()} | En Lote: ${switchLote}`);
               
               const resp = await fetch(urlDinamica, {
                   method: 'POST',
@@ -654,8 +673,9 @@
                   break; 
               }
               
-              if (switchLote && esOperacionLoteValida) {
-                  console.log(`[Orquestador JS] El backend absorbió el lote completo en Python. Terminando iteración del cliente.`);
+              // Si es un lote (sea agregar, eliminar o posicionar), Python absorbe el grupo y rompemos el bucle JS
+              if (switchLote) {
+                  console.log(`[Orquestador JS] El backend absorbió el lote completo (${tipoTarea.toUpperCase()}) en Python. Terminando iteración del cliente.`);
                   break; 
               }
           }
@@ -666,7 +686,7 @@
           console.error("Error crítico en la cola de ejecución:", e);
           window.location.reload();
       }
-  });
+});
 
   async function refrescarMensajes() {
     try {

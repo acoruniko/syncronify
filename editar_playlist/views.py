@@ -37,6 +37,7 @@ def editar_playlist_home(request, playlist_id):
     )
 
     total_con_pendientes = relaciones.count()
+    ahora = timezone.now()  # 🕒 Captura del tiempo actual del sistema
 
     canciones = []
     for rel in relaciones:
@@ -46,6 +47,13 @@ def editar_playlist_home(request, playlist_id):
             minutos = c.duracion_ms // 60000
             segundos = (c.duracion_ms % 60000) // 1000
             duracion_str = f"{minutos}:{segundos:02d}"
+
+        # Cálculo de días en el sistema limpio y real
+        if rel.fecha_sincronizacion:
+            dias_sistema = (ahora - rel.fecha_sincronizacion).days
+            dias_en_sistema = max(0, dias_sistema)  # Mantiene el entero si ya existe
+        else:
+            dias_en_sistema = None  # 🚫 No inventamos datos si es null en la BD
 
         tareas_qs = (
             Tarea.objects.filter(relacion=rel)
@@ -73,6 +81,7 @@ def editar_playlist_home(request, playlist_id):
             "cover_url": getattr(c, "cover_url", None),
             "id_relacion": rel.id_relacion,
             "tareas": tareas,
+            "dias_en_sistema": dias_en_sistema,  # 🚀 Inyectado para HTML y JSON
         })
 
     # ⚠️ Verificar rate limit usando servicio
@@ -84,9 +93,7 @@ def editar_playlist_home(request, playlist_id):
         seconds_remaining = check_rate_limit(request, cred, show_message=False) or 0
         rate_limited = seconds_remaining > 0
 
-    # 🚀 NUEVO: Cargar catálogo general y mapear los géneros asignados a la playlist
     generos = Genero.objects.all().order_by('nombre')
-    # Extraemos un set plano de IDs para evaluar con el tag {% if ... in ... %} de Django en el template
     generos_asignados_ids = set(playlist.generos.values_list('id_genero', flat=True))
 
     return render(request, "editar_playlist/editar_playlist.html", {
@@ -96,8 +103,8 @@ def editar_playlist_home(request, playlist_id):
         "rate_limited": rate_limited,
         "seconds_remaining": seconds_remaining,
         "total_con_pendientes": total_con_pendientes,
-        "generos": generos,                         # 🚀 Enviado al template
-        "generos_asignados_ids": generos_asignados_ids, # 🚀 Enviado al template
+        "generos": generos,
+        "generos_asignados_ids": generos_asignados_ids,
     })
 
 

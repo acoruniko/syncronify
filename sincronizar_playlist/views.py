@@ -144,7 +144,6 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
     playlist_actual_id = tarea.relacion.playlist_id if tarea.relacion else None
     if playlist_actual_id and playlist_actual_id != int(playlist_id):
         print(f"[WARN VISTA] La tarea {tarea_id} mutó de playlist. Original de URL: {playlist_id} -> Actual en DB: {playlist_actual_id}")
-        # Dejamos que continúe usando el ID real de la base de datos en lugar de morir en un 404
 
     # 📥 EXTRAER PARÁMETRO DE LOTE DESDE EL JSON ENVIADO POR JS
     ejecutar_como_lote = False
@@ -191,12 +190,10 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
     # =====================================================================
     # 👉 EJECUCIÓN SOBERANA: Selección de flujo basada EN LA ORDEN DEL JS
     # =====================================================================
-    tipo_actual = tarea.tipo.strip().lower()
-
-    # 🎯 LA CORRECCIÓN: Quitamos 'pertenece_a_lote' como disparador automático. 
-    # Solo se procesa como lote si el JS explícitamente lo pide (ejecutar_como_lote == True)
+    
+    # 🛠️ AGREGAR Y ELIMINAR: Absorben el lote completo de la BD en una sola iteración de Python
     if ejecutar_como_lote and tipo_actual in ["agregar", "eliminar"]:
-        print(f"\n=== [DEBUG VISTA] INICIO PROCESAMIENTO LOTE SOLICITADO [{tipo_actual.upper()}] ===")
+        print(f"\n=== [DEBUG VISTA] INICIO PROCESAMIENTO LOTE ABSORBIDO [{tipo_actual.upper()}] ===")
         
         tareas_lote = Tarea.objects.filter(
             id_lote=tarea.id_lote, 
@@ -213,17 +210,24 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
         )
         print(f"=== [DEBUG VISTA] FIN PROCESAMIENTO LOTE [{tipo_actual.upper()}] ===\n")
         
+        lote_absorbido = True  # Le avisa al JS que rompa el bucle de inmediato
         total_procesadas = total_tareas_pendientes
 
-    # 2. FLUJO UNITARIO / SECUENCIAL MANUAL: Si el JS mandó ejecutar_como_lote=False, 
-    # se procesa una por una en el bucle del cliente, sin importar que tenga id_lote en DB.
+    # 🛠️ POSICIONAR (en lote o individual) O CUALQUIER TAREA UNITARIA STANDARD
     else:
-        print(f"\n=== [DEBUG VISTA] EJECUCIÓN SECUENCIAL/UNITARIA FORZADA (ID Tarea: {tarea.id_tarea} | Tipo: {tarea.tipo}) ===")
+        # Si viene de un switch de lote pero es posicionar, se envía ejecutar_como_lote=True 
+        # para que la Capa 2 use el sufijo de lote correcto, pero procesando uno por uno de forma secuencial.
+        modo_lote_capa2 = True if (ejecutar_como_lote and tipo_actual == "posicionar") else False
+        
+        print(f"\n=== [DEBUG VISTA] EJECUCIÓN SECUENCIAL (ID Tarea: {tarea.id_tarea} | Tipo: {tarea.tipo} | Modo Lote: {modo_lote_capa2}) ===")
         
         estado, concilio, mensaje_telemetria = execute_tarea(
-            tarea.id_tarea, source="manual", ejecutar_como_lote=False, request=request
+            tarea.id_tarea, source="manual", ejecutar_como_lote=modo_lote_capa2, request=request
         )
+        
+        lote_absorbido = False  # Le avisa al JS que continúe con la siguiente tarea de la cola
         total_procesadas = 1
+        total_tareas_pendientes = 1
     
     # Refrescamos el estado final después de procesar
     tarea.refresh_from_db()
@@ -231,11 +235,28 @@ def sincronizar_tarea(request, playlist_id, tarea_id):
     if concilio and mensaje_telemetria:
         messages.info(request, mensaje_telemetria)
 
+    # 🎯 CORRECCIÓN QUIRÚRGICA: Extraer el string del mensaje generado para retornarlo al JS
+    texto_notificacion = ""
+    if estado == "Completado" and tarea.relacion and tarea.relacion.cancion and tarea.relacion.playlist:
+        tipo_str = tarea.tipo.strip().capitalize()
+        sufijo_lote = " en lote." if (ejecutar_como_lote and tipo_actual == "posicionar") else "."
+        
+        if tipo_actual == "posicionar":
+            texto_notificacion = f"La tarea Posicionar de '{tarea.relacion.cancion.nombre}' (Nueva posición: {tarea.posicion}) en la playlist '{tarea.relacion.playlist.nombre}' se ejecutó correctamente{sufijo_lote}"
+        else:
+            texto_notificacion = f"La tarea {tipo_str} de '{tarea.relacion.cancion.nombre}' en la playlist '{tarea.relacion.playlist.nombre}' se ejecutó correctamente."
+
     if estado == "Completado":
         return JsonResponse({
-            "ok": True, "estado": tarea.estado, "intentos": tarea.intentos,
-            "rate_limited": False, "seconds_remaining": 0, "lote_procesado": ejecutar_como_lote,
-            "total_lote": total_tareas_pendientes if (ejecutar_como_lote and tipo_actual in ["agregar", "eliminar"]) else 1
+            "ok": True, 
+            "estado": tarea.estado, 
+            "intentos": tarea.intentos,
+            "rate_limited": False, 
+            "seconds_remaining": 0, 
+            "lote_procesado": ejecutar_como_lote,
+            "lote_absorbido": lote_absorbido,  # 🚀 LLAVE INTEGRAL PARA EL ORQUESTADOR JS
+            "total_lote": total_tareas_pendientes,
+            "mensaje_interfaz": texto_notificacion  # 📦 Pasamos el texto limpio al front-end
         })
     else:
         error_msg = tarea.mensaje_error or "Ocurrió un error en el procesamiento."

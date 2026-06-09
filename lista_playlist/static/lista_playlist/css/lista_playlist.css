@@ -277,3 +277,32 @@
   margin-left: 0px;
   margin-bottom: 50px;
 } 
+
+/* Contenedor y diseño base de los globos informativos */
+.globo-alerta {
+    display: flex !important; /* Cambiado a flex puro para centrado real */
+    align-items: center;
+    justify-content: center;
+    width: 20px !important;    /* Dimensiones explícitas y simétricas */
+    height: 20px !important;
+    min-width: 20px !important; /* Evita que Flexbox lo aplaste */
+    min-height: 20px !important;
+    padding: 0 !important;     /* Removemos padding para centrar números de 1 o 2 dígitos perfectamente */
+    font-size: 11px;
+    font-weight: bold;
+    border-radius: 50%;
+    color: #000000 !important;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
+}
+
+/* Estado de advertencia: Amarillo */
+.globo-alerta.warning-glow {
+    background-color: #f1c40f !important;
+}
+
+/* Estado crítico: Rojo (Texto blanco para legibilidad) */
+.globo-alerta.danger-glow {
+    background-color: #e74c3c !important;
+    color: #ffffff !important;
+}

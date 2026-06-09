@@ -210,9 +210,8 @@
           inyectarInteraccionClickPlaylists();
       }
       
-      // Inicializar la fecha global con el día de mañana para prevenir ejecuciones en el pasado
       const hoy = new Date();
-      hoy.setDate(hoy.getDate() + 1);
+      hoy.setDate(hoy.getDate());
       document.getElementById('fecha-global-lote').value = hoy.toISOString().split('T')[0];
   });
 

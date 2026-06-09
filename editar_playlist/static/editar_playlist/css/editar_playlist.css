@@ -226,7 +226,7 @@
 .songs-header,
 .song-row {
   display: grid;
-  grid-template-columns: 60px 2fr 1fr;
+  grid-template-columns: 60px 2fr 1fr 60px; /* espacio para índice, título, álbum y días */
   align-items: center;
   gap: 8px;
 }
@@ -1203,5 +1203,16 @@
     gap: 20px;
     width: 1500px;
     justify-content: center; /* Centra el grid dentro del contenedor maestro */
+}
+
+/* Estados de antigüedad para las canciones */
+.dias-badge.warning {
+    color: #f1c40f !important; /* Amarillo Spotify / Alerta */
+    font-weight: bold;
+}
+
+.dias-badge.danger {
+    color: #e74c3c !important; /* Rojo / Crítico */
+    font-weight: bold;
 }
 

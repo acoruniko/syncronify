@@ -3,16 +3,38 @@
   <div class="playlist-row" 
        onclick="selectPlaylist(this)" 
        data-id="{{ playlist.id_playlist }}" 
-       data-name="{{ playlist.nombre }}">
-    {% if playlist.cover_url %}
-      <img src="{{ playlist.cover_url }}" alt="Cover {{ playlist.nombre }}" class="playlist-cover">
-    {% else %}
-      <img src="{% static 'img/placeholder.png' %}" alt="Sin imagen" class="playlist-cover">
-    {% endif %}
-    <div class="playlist-info">
-      <h3>{{ playlist.nombre }}</h3>
-      <p>{{ playlist.total_canciones }} canciones · {{ playlist.propietario }}</p>
+       data-name="{{ playlist.nombre }}"
+       style="display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box;">
+       
+    <div style="display: flex; align-items: center; overflow: hidden; flex-grow: 1; padding-right: 15px;">
+      {% if playlist.cover_url %}
+        <img src="{{ playlist.cover_url }}" alt="Cover {{ playlist.nombre }}" class="playlist-cover">
+      {% else %}
+        <img src="{% static 'img/placeholder.png' %}" alt="Sin imagen" class="playlist-cover">
+      {% endif %}
+      
+      <div class="playlist-info" style="overflow: hidden;">
+        <h3>{{ playlist.nombre }}</h3>
+        <p>{{ playlist.total_canciones }} canciones · {{ playlist.propietario }}</p>
+      </div>
     </div>
+
+    <div class="playlist-alerts-indicator" style="display: flex; gap: 6px; flex-shrink: 0; align-items: center; transform: translateY(-6px);">
+      
+      {% if playlist.total_amarillas > 0 %}
+        <span class="globo-alerta warning-glow" title="{{ playlist.total_amarillas }} canciones con más de 15 días">
+          {{ playlist.total_amarillas }}
+        </span>
+      {% endif %}
+
+      {% if playlist.total_rojas > 0 %}
+        <span class="globo-alerta danger-glow" title="{{ playlist.total_rojas }} canciones críticas con más de 30 días">
+          {{ playlist.total_rojas }}
+        </span>
+      {% endif %}
+
+    </div>
+
   </div>
 {% empty %}
   <p style="color: #727272; font-style: italic; padding: 15px; text-align: center; width: 100%;">

@@ -43,8 +43,33 @@
 
         {% empty %}
           <p class="empty">No hay registros disponibles para este mes.</p>
-        {% endfor %}
+        {% endfor %}        
       </div>
+      {% if logs.has_other_pages %}
+        <div class="pagination-container">
+          <div class="pagination-controls">
+            
+            {% if logs.has_previous %}
+              <a href="?page={{ logs.previous_page_number }}&month_year={{ current_year }}-{{ current_month|stringformat:'02d' }}&order_by={{ order_by }}&direction={{ direction }}&rotation={{ rotation }}" 
+                 class="action-btn paginador">Anterior</a>
+            {% else %}
+              <button class="action-btn paginador" disabled style="opacity: 0.5; cursor: not-allowed;">Anterior</button>
+            {% endif %}
+
+            <span class="page-info">
+              Página <strong>{{ logs.number }}</strong> de <strong>{{ logs.paginator.num_pages }}</strong>
+            </span>
+
+            {% if logs.has_next %}
+              <a href="?page={{ logs.next_page_number }}&month_year={{ current_year }}-{{ current_month|stringformat:'02d' }}&order_by={{ order_by }}&direction={{ direction }}&rotation={{ rotation }}" 
+                 class="action-btn paginador">Siguiente</a>
+            {% else %}
+              <button class="action-btn paginador" disabled style="opacity: 0.5; cursor: not-allowed;">Siguiente</button>
+            {% endif %}
+
+          </div>
+        </div>
+      {% endif %}
     </div>
 
     <!-- Columna derecha: selector de mes + botón atrás -->

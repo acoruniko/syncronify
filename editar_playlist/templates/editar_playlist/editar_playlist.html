@@ -59,6 +59,7 @@
         <span class="col-idx">#</span>
         <span class="col-title">Título</span>
         <span class="col-album">Álbum</span>
+        <span class="col-dias" style="width: 60px; text-align: center;">Días</span>
       </div>
 
       <div id="lista-canciones" class="songs-list scroll-container">
@@ -72,6 +73,15 @@
               {{ c.titulo }}
             </span>
             <span class="col-album">{{ c.album }}</span>
+            <span class="col-dias" style="width: 60px; text-align: right; color: #b3b3b3;">
+              {% if c.dias_en_sistema is not None %}
+                <span class="dias-badge {% if c.dias_en_sistema > 30 %}danger{% elif c.dias_en_sistema > 15 %}warning{% endif %}">
+                  {{ c.dias_en_sistema }} d
+                </span>
+              {% else %}
+                —
+              {% endif %}
+            </span>
           </div>
         {% empty %}
           <p class="empty">Esta playlist no tiene canciones relacionadas.</p>
@@ -833,6 +843,7 @@
       document.getElementById("detalle-agregado").textContent = c.fecha_agregado ? new Date(c.fecha_agregado).toLocaleDateString() : "—";
       document.getElementById("detalle-posicion").textContent = c.posicion || "—";
 
+      // Tus tareas se refrescan aquí adentro perfectamente con la data local
       refrescarTareas(relacionId);
     }
   }
