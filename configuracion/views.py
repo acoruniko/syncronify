@@ -193,11 +193,27 @@ def eliminar_usuario_ajax(request):
 @login_required  
 def obtener_tiempo_restante_ajax(request):
     tarea = PeriodicTask.objects.get(name='syncronify_main_task')
-    ahora = timezone.now()
-    intervalo_segundos = tarea.interval.every * 3600
-    referencia = tarea.last_run_at if tarea.last_run_at else ahora
     
+    # Usamos timezone.now() directo. Si viene con zona horaria, 
+    # la removemos para comparar manzanas con manzanas en formato plano (naive)
+    ahora = timezone.now()
+    if timezone.is_aware(ahora):
+        ahora = ahora.replace(tzinfo=None)
+        
+    intervalo_segundos = tarea.interval.every * 3600
+    
+    # Tratamos last_run_at exactamente igual, removiendo su tzinfo si existe
+    if tarea.last_run_at:
+        referencia = tarea.last_run_at
+        if timezone.is_aware(referencia):
+            referencia = referencia.replace(tzinfo=None)
+    else:
+        referencia = ahora
+    
+    # Calculamos la próxima ejecución en tiempo plano
     proxima_ejecucion = referencia + timedelta(seconds=intervalo_segundos)
+    
+    # Si por desfase de inicialización da negativo, calculamos la vuelta real
     if proxima_ejecucion < ahora:
         segundos_desde_vencimiento = (ahora - proxima_ejecucion).total_seconds()
         vueltas_perdidas = math.ceil(segundos_desde_vencimiento / intervalo_segundos)
@@ -205,5 +221,8 @@ def obtener_tiempo_restante_ajax(request):
 
     segundos_restantes = int((proxima_ejecucion - ahora).total_seconds())
     
+    # Control de seguridad: si da un número absurdo o negativo por el desfase inicial
+    if segundos_restantes < 0 or segundos_restantes > intervalo_segundos:
+        segundos_restantes = segundos_restantes % intervalo_segundos
+
     return JsonResponse({'segundos': segundos_restantes})
-    
