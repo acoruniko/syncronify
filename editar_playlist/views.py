@@ -45,7 +45,7 @@ def editar_playlist_home(request, playlist_id):
             segundos = (c.duracion_ms % 60000) // 1000
             duracion_str = f"{minutos}:{segundos:02d}"
 
-        # Cálculo de días en el sistema limpio y real
+        # Cálculo de días en el sistema limpio y real 
         if rel.fecha_sincronizacion:
             dias_sistema = (ahora - rel.fecha_sincronizacion).days
             dias_en_sistema = max(0, dias_sistema) 
