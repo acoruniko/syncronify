@@ -45,12 +45,17 @@ def editar_playlist_home(request, playlist_id):
             segundos = (c.duracion_ms % 60000) // 1000
             duracion_str = f"{minutos}:{segundos:02d}"
 
-        # Cálculo de días en el sistema limpio y real
+        # Cálculo de días en el sistema limpio y real (Blindado contra zonas horarias)
         if rel.fecha_sincronizacion:
-            dias_sistema = (ahora - rel.fecha_sincronizacion).days
+            # 1. Hacemos copias locales limpias de las fechas sin zona horaria (naive)
+            ahora_naive = ahora.replace(tzinfo=None) if timezone.is_aware(ahora) else ahora
+            fecha_sinc_naive = rel.fecha_sincronizacion.replace(tzinfo=None) if timezone.is_aware(rel.fecha_sincronizacion) else rel.fecha_sincronizacion
+            
+            # 2. Restamos de forma segura manzana con manzana
+            dias_sistema = (ahora_naive - fecha_sinc_naive).days
             dias_en_sistema = max(0, dias_sistema) 
         else:
-            dias_en_sistema = None 
+            dias_en_sistema = None
 
         tareas_qs = (
             Tarea.objects.filter(relacion=rel)
