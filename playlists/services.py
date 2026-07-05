@@ -158,16 +158,12 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
         return {"ok": False, "error": f"La playlist con ID {id_playlist_local} no existe en la BD."}
 
     headers = {"Authorization": f"Bearer {spotify_token}"}
-    
-    url_tracks = f"https://api.spotify.com/v1/playlists/{playlist.id_spotify}/tracks?fields=items(track(id,name,album(name,images),artists(name),duration_ms,popularity))"
-    try:
-        resp_tracks = requests.get(url_tracks, headers=headers, timeout=15)
-        if resp_tracks.status_code != 200:
-            return {"ok": False, "error": f"Error al descargar tracks (Status {resp_tracks.status_code})"}
-        items_spotify = resp_tracks.json().get("items", [])
-    except Exception as e:
-        return {"ok": False, "error": f"Error de conexión: {str(e)}"}
 
+    items_spotify = obtener_todas_las_canciones(playlist.id_spotify, headers)
+
+    if not items_spotify:
+        return {"ok": False, "error": "No se pudieron recuperar canciones o la playlist está vacía."}
+    
     url_playlist_base = f"https://api.spotify.com/v1/playlists/{playlist.id_spotify}?fields=snapshot_id"
     try:
         resp_snap = requests.get(url_playlist_base, headers=headers, timeout=10)
@@ -315,3 +311,22 @@ def conciliar_playlist_con_spotify(id_playlist_local, spotify_token=None, reques
         "nombre_playlist": playlist.nombre, 
         "mensaje": msg_final
     }
+
+def obtener_todas_las_canciones(playlist_id, headers):
+    """
+    Función auxiliar para paginar las canciones de Spotify.
+    """
+    todos_los_items = []
+    # Usamos limit=100 que es el máximo permitido por la API
+    url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks?fields=items(track(id,name,album(name,images),artists(name),duration_ms,popularity)),next&limit=100"
+    
+    while url:
+        resp = requests.get(url, headers=headers, timeout=15)
+        if resp.status_code != 200:
+            break
+        
+        data = resp.json()
+        todos_los_items.extend(data.get("items", []))
+        url = data.get("next") 
+        
+    return todos_los_items
