@@ -74,6 +74,9 @@ def filtrar_playlists(request):
     buscar_texto = request.GET.get("q", "").strip()
     ahora = timezone.now()
 
+    # Capturamos el parámetro de la URL (por defecto será False si no se envía)
+    mostrar_alertas_param = request.GET.get("alertas", "true").lower() == "true"
+
     # 1. PASO A: Filtrado básico para obtener los IDs únicos de las playlists que aplican
     queryset_base = Playlist.objects.all()
 
@@ -105,7 +108,7 @@ def filtrar_playlists(request):
 
     return render(request, "lista_playlist/partials/playlist_rows.html", {
         "playlists": playlists_finales,
-        "mostrar_alertas": True
+        "mostrar_alertas": mostrar_alertas_param
     })
 
 @require_POST

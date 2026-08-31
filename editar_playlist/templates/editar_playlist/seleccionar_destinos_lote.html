@@ -303,7 +303,7 @@
 
       const queryGeneros = Array.from(generosFiltroSeleccionados).join(',');
       const queryTexto = encodeURIComponent(textoBusquedaActual);
-      const url = `/lista_playlist/ajax/filtrar/?generos=${queryGeneros}&q=${queryTexto}`;
+      const url = `/lista_playlist/ajax/filtrar/?generos=${queryGeneros}&q=${queryTexto}&alertas=false`;
 
       fetch(url)
           .then(response => {
