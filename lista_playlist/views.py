@@ -104,7 +104,8 @@ def filtrar_playlists(request):
     playlists_finales = aplicar_anotaciones_alertas(playlists_limpias, ahora)
 
     return render(request, "lista_playlist/partials/playlist_rows.html", {
-        "playlists": playlists_finales
+        "playlists": playlists_finales,
+        "mostrar_alertas": True
     })
 
 @require_POST
