@@ -1136,7 +1136,7 @@
    ========================================================================== */
 
 .detalle-box.lote-playlists {
-    height: 150px; 
+    height: 195px; 
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -1148,8 +1148,8 @@
     gap: 8px;
     
     /* 🎯 Espacio rígido para las etiquetas (aproximadamente 2 filas libres) */
-    max-height: 68px; 
-    height: 68px;
+    max-height: 110px; 
+    height: 110px;
     
     overflow-y: auto; 
     padding-right: 4px;
@@ -1165,14 +1165,18 @@
 }
 
 /* Evitamos que el input herede estilos extraños de altura de los botones */
+
 .filter-search-input {
-    height: 32px;
-    box-sizing: border-box;
-    padding: 6px 10px;
-    background: #1c1c1c;
-    border: 1px solid #404040;
-    color: #fff;
-    border-radius: 4px;
+  width: 100%;
+  background: #282828;
+  border: 1px solid #404040;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #fff;
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s ease;
 }
 
 /* Tamaño fijo estricto para los botones de géneros */

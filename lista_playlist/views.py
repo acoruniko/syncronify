@@ -59,6 +59,7 @@ def lista_playlist_home(request):
     return render(request, "lista_playlist/home.html", {
         "playlists": playlists,
         "generos": generos,
+        "mostrar_alertas": True,
         "rate_limited": rate_limited,
         "seconds_remaining": seconds_remaining or 0,
     })
@@ -88,6 +89,7 @@ def filtrar_playlists(request):
     # Filtro por Texto
     if buscar_texto:
         queryset_base = queryset_base.filter(
+            Q(nombre__icontains=buscar_texto) |
             Q(playlistcancion__cancion__nombre__icontains=buscar_texto) |
             Q(playlistcancion__cancion__artistas__icontains=buscar_texto)
         )

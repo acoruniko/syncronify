@@ -953,9 +953,37 @@ def planificar_tareas_lote_ajax(request):
                     fecha_raw = track.get("fecha_ejecucion")
                     dias_proyeccion_raw = track.get("dias_proyeccion")
 
-                    cancion_obj = Cancion.objects.filter(id_spotify=track_id).first()
-                    if not cancion_obj:
+                    if not track_id:
                         continue
+
+                    cancion_obj = Cancion.objects.filter(id_spotify=track_id).first()
+                    
+                    if not cancion_obj:
+                        token = get_spotify_token()
+                        headers = {"Authorization": f"Bearer {token}"}
+                        resp = requests.get(
+                            f"https://api.spotify.com/v1/tracks/{track_id}",
+                            headers=headers,
+                            timeout=10
+                        )
+                        
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            cover_url = data["album"]["images"][0]["url"] if data["album"].get("images") else None
+                            
+                            cancion_obj, _ = Cancion.objects.get_or_create(
+                                id_spotify=track_id,
+                                defaults={
+                                    "nombre": data["name"],
+                                    "artistas": ", ".join([a["name"] for a in data["artists"]]),
+                                    "album": data["album"]["name"],
+                                    "duracion_ms": data["duration_ms"],
+                                    "popularidad": data.get("popularity"),
+                                    "cover_url": cover_url,
+                                }
+                            )
+                        else:
+                            continue
 
                     if track_id not in logs_copiado:
                         logs_copiado[track_id] = {

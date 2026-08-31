@@ -306,3 +306,15 @@
     background-color: #e74c3c !important;
     color: #ffffff !important;
 }
+
+/* Estilo global durante la petición AJAX */
+body.buscando-ajax,
+body.buscando-ajax * {
+    cursor: wait !important;
+}
+
+/* Opcional: Atenuar ligeramente el contenedor dinámico mientras carga */
+body.buscando-ajax #contenedor-playlists-dinamico {
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}

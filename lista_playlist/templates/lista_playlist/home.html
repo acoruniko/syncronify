@@ -130,6 +130,8 @@
         wrapperInput.style.display = 'none';
         btnBusqueda.classList.remove('selected');
         inputTexto.value = ''; 
+        textoBusquedaActual = ""; 
+        ejecutarFiltradoGlobal(); 
     }
   }
 
@@ -226,6 +228,9 @@
     const queryTexto = encodeURIComponent(textoBusquedaActual);
     const url = `/lista_playlist/ajax/filtrar/?generos=${queryGeneros}&q=${queryTexto}`;
 
+    // 🚀 Activamos el cursor de espera y bloqueo visual
+    document.body.classList.add('buscando-ajax');
+
     fetch(url)
         .then(response => {
             if (!response.ok) throw new Error("Error procesando los filtros en el servidor.");
@@ -233,11 +238,14 @@
         })
         .then(htmlParcial => {
             contenedor.innerHTML = htmlParcial;
-            
             deseleccionarPlaylistActual();
         })
         .catch(error => {
             console.error("Error en el filtrado dinámico:", error);
+        })
+        .finally(() => {
+            // 🛑 Restauramos el cursor normal pase lo que pase
+            document.body.classList.remove('buscando-ajax');
         });
   }
 

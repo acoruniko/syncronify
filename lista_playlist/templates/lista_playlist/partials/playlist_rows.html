@@ -1,11 +1,11 @@
 {% load static %}
 {% for playlist in playlists %}
   <div class="playlist-row" 
-       onclick="selectPlaylist(this)" 
-       data-id="{{ playlist.id_playlist }}" 
-       data-name="{{ playlist.nombre }}"
-       style="display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box;">
-       
+        onclick="selectPlaylist(this)" 
+        data-id="{{ playlist.id_playlist }}" 
+        data-name="{{ playlist.nombre }}"
+        style="display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box;">
+        
     <div style="display: flex; align-items: center; overflow: hidden; flex-grow: 1; padding-right: 15px;">
       {% if playlist.cover_url %}
         <img src="{{ playlist.cover_url }}" alt="Cover {{ playlist.nombre }}" class="playlist-cover">
@@ -19,21 +19,23 @@
       </div>
     </div>
 
-    <div class="playlist-alerts-indicator" style="display: flex; gap: 6px; flex-shrink: 0; align-items: center; transform: translateY(-6px);">
-      
-      {% if playlist.total_amarillas > 0 %}
-        <span class="globo-alerta warning-glow" title="{{ playlist.total_amarillas }} canciones con más de 15 días">
-          {{ playlist.total_amarillas }}
-        </span>
-      {% endif %}
+    {% if mostrar_alertas %}
+      <div class="playlist-alerts-indicator" style="display: flex; gap: 6px; flex-shrink: 0; align-items: center; transform: translateY(-6px);">
+        
+        {% if playlist.total_amarillas > 0 %}
+          <span class="globo-alerta warning-glow" title="{{ playlist.total_amarillas }} canciones con más de 15 días">
+            {{ playlist.total_amarillas }}
+          </span>
+        {% endif %}
 
-      {% if playlist.total_rojas > 0 %}
-        <span class="globo-alerta danger-glow" title="{{ playlist.total_rojas }} canciones críticas con más de 30 días">
-          {{ playlist.total_rojas }}
-        </span>
-      {% endif %}
+        {% if playlist.total_rojas > 0 %}
+          <span class="globo-alerta danger-glow" title="{{ playlist.total_rojas }} canciones críticas con más de 30 días">
+            {{ playlist.total_rojas }}
+          </span>
+        {% endif %}
 
-    </div>
+      </div>
+    {% endif %}
 
   </div>
 {% empty %}
